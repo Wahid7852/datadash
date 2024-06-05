@@ -26,10 +26,13 @@ class FileReceiver(QThread):
         server_socket.listen(1)
         client_socket, addr = server_socket.accept()
         with client_socket:
+            file_name_size = struct.unpack('<Q', client_socket.recv(8))[0]
+            file_name = client_socket.recv(file_name_size).decode()
             file_size = struct.unpack('<Q', client_socket.recv(8))[0]
             received_size = 0
             os.makedirs("c:\\Received", exist_ok=True)
-            with open("c:\\Received\\received_file", "wb") as f:
+            file_path = os.path.join("c:\\Received", file_name)
+            with open(file_path, "wb") as f:
                 while received_size < file_size:
                     data = client_socket.recv(4096)
                     if not data:
@@ -49,13 +52,20 @@ class FileSender(QThread):
 
     def run(self):
         file_size = os.path.getsize(self.file_path)
+        file_name = os.path.basename(self.file_path)
+        file_name_size = len(file_name.encode())
+        
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             client_socket.connect((self.ip_address, RECEIVER_PORT))
         except ConnectionRefusedError:
             QMessageBox.critical(None, "Connection Error", "Failed to connect to the specified IP address.")
             return
+        
+        client_socket.send(struct.pack('<Q', file_name_size))
+        client_socket.send(file_name.encode())
         client_socket.send(struct.pack('<Q', file_size))
+
         sent_size = 0
         with open(self.file_path, 'rb') as f:
             while sent_size < file_size:
@@ -64,6 +74,7 @@ class FileSender(QThread):
                 sent_size += len(data)
                 self.progress_update.emit(sent_size * 100 // file_size)
         client_socket.close()
+
 
 class MainApp(QWidget):
     def __init__(self):
