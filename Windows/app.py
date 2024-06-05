@@ -1,5 +1,6 @@
 import sys
 import os
+import platform
 import socket
 import struct
 import threading
@@ -30,8 +31,13 @@ class FileReceiver(QThread):
             file_name = client_socket.recv(file_name_size).decode()
             file_size = struct.unpack('<Q', client_socket.recv(8))[0]
             received_size = 0
-            os.makedirs("c:\\Received", exist_ok=True)
-            file_path = os.path.join("c:\\Received", file_name)
+            if os.name == 'nt':
+                file_dir = 'c:\\Received'
+            else:
+                file_dir = os.environ.get("HOME") + "/Received"
+                
+            os.makedirs(file_dir, exist_ok=True)
+            file_path = os.path.join(file_dir, file_name)
             with open(file_path, "wb") as f:
                 while received_size < file_size:
                     data = client_socket.recv(4096)
