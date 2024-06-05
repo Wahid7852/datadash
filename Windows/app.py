@@ -31,13 +31,24 @@ class FileReceiver(QThread):
             file_name = client_socket.recv(file_name_size).decode()
             file_size = struct.unpack('<Q', client_socket.recv(8))[0]
             received_size = 0
-            if os.name == 'nt':
-                file_dir = 'c:\\Received'
+
+            # Determine the file path based on the OS
+            if platform.system() == 'Windows':
+                os.makedirs("c:\\Received", exist_ok=True)
+                file_path = os.path.join("c:\\Received", file_name)
+            elif platform.system() == 'Linux':
+                home_dir = os.path.expanduser('~')
+                os.makedirs(os.path.join(home_dir, "received"), exist_ok=True)
+                file_path = os.path.join(home_dir, "received", file_name)
+            elif platform.system() == 'Darwin':
+                home_dir = os.path.expanduser('~')
+                documents_dir = os.path.join(home_dir, "Documents")
+                os.makedirs(os.path.join(documents_dir, "received"), exist_ok=True)
+                file_path = os.path.join(documents_dir, "received", file_name)
             else:
-                file_dir = os.environ.get("HOME") + "/Received"
-                
-            os.makedirs(file_dir, exist_ok=True)
-            file_path = os.path.join(file_dir, file_name)
+                QMessageBox.critical(None, "Unsupported OS", "This OS is not supported.")
+                return
+
             with open(file_path, "wb") as f:
                 while received_size < file_size:
                     data = client_socket.recv(4096)
