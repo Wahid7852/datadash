@@ -1,5 +1,5 @@
 seperate class files for python app
-Actual Device name to be shown in discovery
+Actual Device name to be shown in discovery (if conditions might be needed for 3 different os)
 Android app
 IpadOS/IOS app
 web app
@@ -7,3 +7,14 @@ device discovery using bluetooth
 file transfer over bluetooth
 file transfer over wifi direct
 app icon
+
+
+
+point 2 contd if needed
+import platform
+platform.node()
+or 
+Platform-Specific Commands:
+For Windows, you can use os.environ['COMPUTERNAME'] or os.environ['USERNAME'].
+For Linux, you can use socket.gethostname() to get the hostname of the device.
+For macOS, you can use platform.node().
