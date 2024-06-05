@@ -31,10 +31,12 @@ class FileReceiver(QThread):
             os.makedirs("c:\\Received", exist_ok=True)
             with open("c:\\Received\\received_file", "wb") as f:
                 while received_size < file_size:
-                    data = client_socket.recv(1024)
+                    data = client_socket.recv(4096)
+                    if not data:
+                        break
                     f.write(data)
                     received_size += len(data)
-                    self.progress_update.emit(received_size)
+                    self.progress_update.emit(received_size * 100 // file_size)
         server_socket.close()
 
 class FileSender(QThread):
@@ -57,10 +59,10 @@ class FileSender(QThread):
         sent_size = 0
         with open(self.file_path, 'rb') as f:
             while sent_size < file_size:
-                data = f.read(1024)
+                data = f.read(4096)
                 client_socket.sendall(data)
                 sent_size += len(data)
-                self.progress_update.emit(sent_size)
+                self.progress_update.emit(sent_size * 100 // file_size)
         client_socket.close()
 
 class MainApp(QWidget):
@@ -187,6 +189,8 @@ class SendApp(QWidget):
             self.label.setText("File transfer completed!")
 
 class ReceiveApp(QWidget):
+    progress_update = pyqtSignal(int)
+
     def __init__(self):
         super().__init__()
         self.initUI()
@@ -205,8 +209,11 @@ class ReceiveApp(QWidget):
 
         self.setLayout(layout)
 
+        self.file_receiver = FileReceiver()
+        self.file_receiver.progress_update.connect(self.updateProgressBar)
+        self.file_receiver.start()
+
         threading.Thread(target=self.listenForBroadcast, daemon=True).start()
-        threading.Thread(target=self.receiveFile, daemon=True).start()
 
     def listenForBroadcast(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -219,23 +226,6 @@ class ReceiveApp(QWidget):
                     response = f"RECEIVER:{DEVICE_NAME}"
                     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as response_socket:
                         response_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
-
-    def receiveFile(self):
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('0.0.0.0', RECEIVER_PORT))
-        server_socket.listen(1)
-        client_socket, addr = server_socket.accept()
-        with client_socket:
-            file_size = struct.unpack('<Q', client_socket.recv(8))[0]
-            received_size = 0
-            os.makedirs("c:\\Received", exist_ok=True)
-            with open("c:\\Received\\received_file", "wb") as f:
-                while received_size < file_size:
-                    data = client_socket.recv(1024)
-                    f.write(data)
-                    received_size += len(data)
-                    self.progress_update.emit(received_size)
-        server_socket.close()
 
     def updateProgressBar(self, value):
         self.progress_bar.setValue(value)
