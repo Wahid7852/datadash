@@ -3,8 +3,8 @@ import os
 import socket
 import struct
 import threading
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+from PyQt6.QtWidgets import *
+from PyQt6.QtCore import *
 
 # Constants
 BROADCAST_PORT = 12345
@@ -247,4 +247,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     main_app = MainApp()
     main_app.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
