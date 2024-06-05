@@ -1,0 +1,8 @@
+Actual Device name to be shown in discovery
+Android app
+IpadOS/IOS app
+web app
+device discovery using bluetooth
+file transfer over bluetooth
+file transfer over wifi direct
+app icon
