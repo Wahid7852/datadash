@@ -47,3 +47,6 @@ Platform-Specific Commands:
 For Windows, you can use os.environ['COMPUTERNAME'] or os.environ['USERNAME'].
 For Linux, you can use socket.gethostname() to get the hostname of the device.
 For macOS, you can use platform.node().
+
+
+add preferences menu where default path, device name, maximum filesize, etc can be edited, store those in .config.json 
