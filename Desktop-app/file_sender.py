@@ -4,7 +4,7 @@ import struct
 from PyQt6.QtCore import QThread, pyqtSignal, QCoreApplication
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QPushButton, QListWidget, 
-    QProgressBar, QLabel, QFileDialog, QApplication
+    QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem
 )
 from constant import BROADCAST_ADDRESS, BROADCAST_PORT, LISTEN_PORT
 
@@ -42,6 +42,34 @@ class FileSender(QThread):
                 sent_size += len(data)
                 self.progress_update.emit(sent_size * 100 // file_size)
         client_socket.close()
+
+
+class Receiver(QListWidgetItem):
+    def __init__(self, name, ip_address):
+        super().__init__(f"{name} ({ip_address})")
+        self._name = name
+        self._ip_address = ip_address
+    
+    @property
+    def name(self):
+        return self._name
+    
+    @name.setter
+    def name(self, value):
+        self._name = value
+        self.updateText()
+    
+    @property
+    def ip_address(self):
+        return self._ip_address
+    
+    @ip_address.setter
+    def ip_address(self, value):
+        self._ip_address = value
+        self.updateText()
+    
+    def updateText(self):
+        self.setText(f"{self._name} ({self._ip_address})")
 
 
 class SendApp(QWidget):
@@ -91,7 +119,8 @@ class SendApp(QWidget):
         self.device_list.clear()
         receivers = self.discover_receivers()
         for receiver in receivers:
-            self.device_list.addItem(f"{receiver['name']} ({receiver['ip']})")
+            item = Receiver(receiver['name'], receiver['ip'])
+            self.device_list.addItem(item)
         self.checkReadyToSend()
 
     def discover_receivers(self):
@@ -125,7 +154,7 @@ class SendApp(QWidget):
         if not selected_item:
             QMessageBox.critical(None, "Selection Error", "Please select a device to send the file.")
             return
-        ip_address = selected_item.text().split('(')[-1][:-1]
+        ip_address = selected_item.ip_address
         self.send_button.setEnabled(False)
         self.file_sender = FileSender(ip_address, self.file_path)
         self.file_sender.progress_update.connect(self.updateProgressBar)
