@@ -11,6 +11,7 @@ share multiple files at once
 share whole folder at once
 when multiple files are sent, optional window that shows the whole list
 can give priority to some file from new optional window if its needed urgently when many files are shared at once
+when file is selected to be sent show the name and size of the file that has been selected in the window
 optional encryption
 add auto discovery when user clicks on send for the first time
 add option to change store location of the file after clicking on receive
