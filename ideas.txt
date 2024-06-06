@@ -51,3 +51,8 @@ For macOS, you can use platform.node().
 
 
 add preferences menu where default path, device name, maximum filesize, etc can be edited, store those in .config.json 
+
+
+android tv idea
+uske liye jo movies send karege vo app data mai hi rahega with a option to open file in vlc player
+and vo inbuilt file manager ke sath hi movies vagera delete kar sakege
