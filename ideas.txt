@@ -1,5 +1,5 @@
 seperate class files for python app
-Actual Device name to be shown in discovery (if conditions might be needed for 3 different os)
+Actual Device name to be shown in discovery (contd at bottom of txt file)
 Android app
 IpadOS/IOS app
 web app
@@ -7,6 +7,35 @@ device discovery using bluetooth
 file transfer over bluetooth
 file transfer over wifi direct
 app icon
+share multiple files at once
+share whole folder at once
+when multiple files are sent, optional window that shows the whole list
+can give priority to some file from new optional window if its needed urgently when many files are shared at once
+optional encryption
+add auto discovery when user clicks on send for the first time
+add option to change store location of the file after clicking on receive
+Add confirmation dialog which ask the user if they are sure to receive the file or not, give prompt to sender that file sharing was cancelled
+For encryted file mode, there should be a pin which when matched and approved begins file transfer, 3 failed attemps for pin matching cancels file share 
+when file is sent give button to ask if they want to send one more file 
+add button to go back to main send receive Window
+Add option to view folder after file transfer is complete
+align window to center of screen
+Add tip a coffee button which links to upi Id 
+add credits dialog which links to github or linkedin account
+add direct repo link for open source contribution
+drag and drop support in send section of the app
+Limit sharing speed for file to reduce network congrestion
+file preview mode which only downloads and views the file without storing it (files smaller than 100mb)
+Background run and transfer mode
+notifications for the app
+cloud file sharing option that allows the user to store data in the cloud for 4 hours max then deletes it(max 2gb) (possible pro mode feature?)
+send notes along with files
+File compression for bigger files to optimise send times
+advaned telemetry which shows copy speed approx time remaining and total time
+Pause and resume feature
+Auto Pause incase of network loss, resume when connection is reestablished
+Add in app update section to check for updates
+improve gui
 
 
 
