@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QApplication
 from PyQt6.QtGui import QScreen
 from file_receiver import ReceiveApp
 from file_sender import SendApp
+import sys
 
 class MainApp(QWidget):
     def __init__(self):
@@ -31,8 +32,8 @@ class MainApp(QWidget):
         screen_width = screen_geometry.width()
         screen_height = screen_geometry.height()
 
-        window_width = 900
-        window_height = 700
+        window_width = 800
+        window_height = 600
 
         x = (screen_width - window_width) / 2
         y = (screen_height - window_height) / 2
@@ -48,3 +49,9 @@ class MainApp(QWidget):
         self.hide()
         self.receive_app = ReceiveApp()
         self.receive_app.show()
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    main_app = MainApp()
+    main_app.show()
+    sys.exit(app.exec())

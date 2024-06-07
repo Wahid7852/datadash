@@ -117,8 +117,8 @@ class SendApp(QWidget):
         screen_width = screen_geometry.width()
         screen_height = screen_geometry.height()
 
-        window_width = 400
-        window_height = 300
+        window_width = 800
+        window_height = 600
 
         x = (screen_width - window_width) / 2
         y = (screen_height - window_height) / 2
