@@ -21,30 +21,30 @@ class FileReceiver(QThread):
     def run(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind(('0.0.0.0', RECEIVER_PORT))
-        server_socket.listen(1)
-        client_socket, addr = server_socket.accept()
-        with client_socket:
-            file_name_size = struct.unpack('<Q', client_socket.recv(8))[0]
+        server_socket.listen(5)  # Listen for multiple connections
+
+        while True:
+            client_socket, addr = server_socket.accept()
+            self.receive_files(client_socket)
+            client_socket.close()  # Close the connection after receiving files
+
+    def receive_files(self, client_socket):
+        while True:
+            # Receive file name size
+            file_name_size_data = client_socket.recv(8)
+            if not file_name_size_data:
+                break  # End of data
+
+            file_name_size = struct.unpack('<Q', file_name_size_data)[0]
+            if file_name_size == 0:
+                break  # End of transfer signal
+
             file_name = client_socket.recv(file_name_size).decode()
             file_size = struct.unpack('<Q', client_socket.recv(8))[0]
             received_size = 0
 
-            # Determine the file path based on the OS
-            if platform.system() == 'Windows':
-                os.makedirs("c:\\Received", exist_ok=True)
-                file_path = os.path.join("c:\\Received", file_name)
-            elif platform.system() == 'Linux':
-                home_dir = os.path.expanduser('~')
-                os.makedirs(os.path.join(home_dir, "received"), exist_ok=True)
-                file_path = os.path.join(home_dir, "received", file_name)
-            elif platform.system() == 'Darwin':
-                home_dir = os.path.expanduser('~')
-                documents_dir = os.path.join(home_dir, "Documents")
-                os.makedirs(os.path.join(documents_dir, "received"), exist_ok=True)
-                file_path = os.path.join(documents_dir, "received", file_name)
-            else:
-                QMessageBox.critical(None, "Unsupported OS", "This OS is not supported.")
-                return
+            # Determine file path based on OS
+            file_path = self.get_file_path(file_name)
 
             with open(file_path, "wb") as f:
                 while received_size < file_size:
@@ -54,9 +54,23 @@ class FileReceiver(QThread):
                     f.write(data)
                     received_size += len(data)
                     self.progress_update.emit(received_size * 100 // file_size)
-        server_socket.close()
 
-
+    def get_file_path(self, file_name):
+        if platform.system() == 'Windows':
+            os.makedirs("c:\\Received", exist_ok=True)
+            return os.path.join("c:\\Received", file_name)
+        elif platform.system() == 'Linux':
+            home_dir = os.path.expanduser('~')
+            os.makedirs(os.path.join(home_dir, "received"), exist_ok=True)
+            return os.path.join(home_dir, "received", file_name)
+        elif platform.system() == 'Darwin':
+            home_dir = os.path.expanduser('~')
+            documents_dir = os.path.join(home_dir, "Documents")
+            os.makedirs(os.path.join(documents_dir, "received"), exist_ok=True)
+            return os.path.join(documents_dir, "received", file_name)
+        else:
+            raise NotImplementedError("Unsupported OS")
+        
 class ReceiveApp(QWidget):
     progress_update = pyqtSignal(int)
 
@@ -99,25 +113,11 @@ class ReceiveApp(QWidget):
                     s.sendto(response.encode(), address)
 
     def center_window(self):
-
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
         window_width, window_height = 800, 600
         x = (screen.width() - window_width) // 2
         y = (screen.height() - window_height) // 2
         self.setGeometry(x, y, window_width, window_height)
-
-        # screen = QApplication.primaryScreen()
-        # screen_geometry = screen.availableGeometry()
-        # screen_width = screen_geometry.width()
-        # screen_height = screen_geometry.height()
-
-        # window_width = 800
-        # window_height = 600
-
-        # x = (screen_width - window_width) / 2
-        # y = (screen_height - window_height) / 2
-
-        # self.setGeometry(int(x), int(y), window_width, window_height)
 
     def updateProgressBar(self, value):
         self.progress_bar.setValue(value)
