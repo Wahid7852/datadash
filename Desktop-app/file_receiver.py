@@ -7,6 +7,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication
 )
+from PyQt6.QtGui import QScreen
 from constant import BROADCAST_ADDRESS, BROADCAST_PORT, LISTEN_PORT
 
 RECEIVER_PORT = 12347
@@ -98,18 +99,25 @@ class ReceiveApp(QWidget):
                     s.sendto(response.encode(), address)
 
     def center_window(self):
-        screen = QApplication.primaryScreen()
-        screen_geometry = screen.availableGeometry()
-        screen_width = screen_geometry.width()
-        screen_height = screen_geometry.height()
 
-        window_width = 800
-        window_height = 600
+        screen = QScreen.availableGeometry(QApplication.primaryScreen())
+        window_width, window_height = 800, 600
+        x = (screen.width() - window_width) // 2
+        y = (screen.height() - window_height) // 2
+        self.setGeometry(x, y, window_width, window_height)
 
-        x = (screen_width - window_width) / 2
-        y = (screen_height - window_height) / 2
+        # screen = QApplication.primaryScreen()
+        # screen_geometry = screen.availableGeometry()
+        # screen_width = screen_geometry.width()
+        # screen_height = screen_geometry.height()
 
-        self.setGeometry(int(x), int(y), window_width, window_height)
+        # window_width = 800
+        # window_height = 600
+
+        # x = (screen_width - window_width) / 2
+        # y = (screen_height - window_height) / 2
+
+        # self.setGeometry(int(x), int(y), window_width, window_height)
 
     def updateProgressBar(self, value):
         self.progress_bar.setValue(value)

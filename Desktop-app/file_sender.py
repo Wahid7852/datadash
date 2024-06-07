@@ -112,18 +112,25 @@ class SendApp(QWidget):
         self.setLayout(layout)
 
     def center_window(self):
-        screen = QApplication.primaryScreen()
-        screen_geometry = screen.availableGeometry()
-        screen_width = screen_geometry.width()
-        screen_height = screen_geometry.height()
 
-        window_width = 800
-        window_height = 600
+        screen = QScreen.availableGeometry(QApplication.primaryScreen())
+        window_width, window_height = 800, 600
+        x = (screen.width() - window_width) // 2
+        y = (screen.height() - window_height) // 2
+        self.setGeometry(x, y, window_width, window_height)
+        
+        # screen = QApplication.primaryScreen()
+        # screen_geometry = screen.availableGeometry()
+        # screen_width = screen_geometry.width()
+        # screen_height = screen_geometry.height()
 
-        x = (screen_width - window_width) / 2
-        y = (screen_height - window_height) / 2
+        # window_width = 800
+        # window_height = 600
 
-        self.setGeometry(int(x), int(y), window_width, window_height)
+        # x = (screen_width - window_width) / 2
+        # y = (screen_height - window_height) / 2
+
+        # self.setGeometry(int(x), int(y), window_width, window_height)
 
     def selectFile(self):
         file_path, _ = QFileDialog.getOpenFileName(self, 'Open File')
