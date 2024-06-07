@@ -1,4 +1,5 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QApplication
+from PyQt6.QtGui import QScreen
 from file_receiver import ReceiveApp
 from file_sender import SendApp
 
@@ -10,6 +11,7 @@ class MainApp(QWidget):
     def initUI(self):
         self.setWindowTitle('Media Sharing App')
         self.setGeometry(100, 100, 300, 200)
+        self.center_window()
 
         layout = QVBoxLayout()
 
@@ -22,6 +24,20 @@ class MainApp(QWidget):
         layout.addWidget(self.receive_button)
 
         self.setLayout(layout)
+
+    def center_window(self):
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        screen_width = screen_geometry.width()
+        screen_height = screen_geometry.height()
+
+        window_width = 900
+        window_height = 700
+
+        x = (screen_width - window_width) / 2
+        y = (screen_height - window_height) / 2
+
+        self.setGeometry(int(x), int(y), window_width, window_height)
 
     def sendFile(self):
         self.hide()

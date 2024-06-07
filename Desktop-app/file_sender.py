@@ -1,11 +1,12 @@
-import os
-import socket
-import struct
-from PyQt6.QtCore import QThread, pyqtSignal, QCoreApplication
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QPushButton, QListWidget, 
     QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem
 )
+from PyQt6.QtGui import QScreen
+import os
+import socket
+import struct
+from PyQt6.QtCore import QThread, pyqtSignal
 from constant import BROADCAST_ADDRESS, BROADCAST_PORT, LISTEN_PORT
 
 RECEIVER_PORT = 12347
@@ -80,6 +81,7 @@ class SendApp(QWidget):
     def initUI(self):
         self.setWindowTitle('Send File')
         self.setGeometry(100, 100, 400, 300)
+        self.center_window()
 
         layout = QVBoxLayout()
 
@@ -108,6 +110,20 @@ class SendApp(QWidget):
         layout.addWidget(self.label)
 
         self.setLayout(layout)
+
+    def center_window(self):
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        screen_width = screen_geometry.width()
+        screen_height = screen_geometry.height()
+
+        window_width = 400
+        window_height = 300
+
+        x = (screen_width - window_width) / 2
+        y = (screen_height - window_height) / 2
+
+        self.setGeometry(int(x), int(y), window_width, window_height)
 
     def selectFile(self):
         file_path, _ = QFileDialog.getOpenFileName(self, 'Open File')

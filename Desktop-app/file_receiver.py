@@ -66,6 +66,7 @@ class ReceiveApp(QWidget):
     def initUI(self):
         self.setWindowTitle('Receive File')
         self.setGeometry(100, 100, 300, 200)
+        self.center_window()
 
         layout = QVBoxLayout()
 
@@ -95,6 +96,20 @@ class ReceiveApp(QWidget):
                 if message == 'DISCOVER':
                     response = f'RECEIVER:{socket.gethostname()}'
                     s.sendto(response.encode(), address)
+
+    def center_window(self):
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        screen_width = screen_geometry.width()
+        screen_height = screen_geometry.height()
+
+        window_width = 400
+        window_height = 300
+
+        x = (screen_width - window_width) / 2
+        y = (screen_height - window_height) / 2
+
+        self.setGeometry(int(x), int(y), window_width, window_height)
 
     def updateProgressBar(self, value):
         self.progress_bar.setValue(value)
