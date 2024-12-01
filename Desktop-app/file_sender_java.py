@@ -139,7 +139,7 @@ class FileSenderJava(QThread):
             metadata_file_path = self.create_metadata(folder_path=folder_path)
             metadata = json.loads(open(metadata_file_path).read())
             # Send metadata file
-            self.send_file(metadata_file_path)
+            self.send_file(metadata_file_path, encrypted_transfer=False)
             #com.an.Datadash
 
         # Send all files
