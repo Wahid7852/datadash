@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -45,6 +46,7 @@ public class PreferencesActivity extends AppCompatActivity {
     private static final String CONFIG_FOLDER_NAME = "config";
     private static final String CONFIG_FILE_NAME = "config.json";  // Config file stored in internal storage
     private ImageButton imageButton;
+    private Switch encryptionSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +63,7 @@ public class PreferencesActivity extends AppCompatActivity {
         Button submitButton = findViewById(R.id.submit_button);
         Button mainMenuButton = findViewById(R.id.main_menu_button);
         Button btnCredits = findViewById(R.id.btn_credits);
+        encryptionSwitch = findViewById(R.id.switch1);
 
         // Set the app version
         TextView appVersionLabel = findViewById(R.id.app_version_label);
@@ -220,14 +223,18 @@ public class PreferencesActivity extends AppCompatActivity {
                 JSONObject configJson = new JSONObject(jsonString);
                 String deviceName = configJson.getString("device_name");
                 String saveToDirectory = configJson.getString("saveToDirectory");
+                boolean encryption = configJson.getBoolean("encryption");
 
                 // Store original preferences in a map
                 originalPreferences.put("device_name", deviceName);
                 originalPreferences.put("saveToDirectory", saveToDirectory);
+                originalPreferences.put("encryption", encryption);
 
                 // Set the input fields with the retrieved values
                 deviceNameInput.setText(deviceName);
                 saveToDirectoryInput.setText(saveToDirectory);
+                encryptionSwitch.setChecked(encryption);
+
             } catch (Exception e) {
                 Log.e("PreferencesActivity", "Error loading preferences", e);
                 setDefaults();  // Fallback to default values if any error occurs
@@ -347,6 +354,7 @@ public class PreferencesActivity extends AppCompatActivity {
     private void submitPreferences() {
         String deviceName = deviceNameInput.getText().toString();
         String saveToDirectoryURI = saveToDirectoryInput.getText().toString();
+        boolean encryption = encryptionSwitch.isChecked();
 
         // Ensure the directory path ends with a slash
         if (!saveToDirectoryURI.startsWith("/")) {
@@ -373,7 +381,7 @@ public class PreferencesActivity extends AppCompatActivity {
             configJson.put("device_name", deviceName);
             configJson.put("saveToDirectory", saveToDirectory);
             configJson.put("max_file_size", 1000000);  // 1 MB
-            configJson.put("encryption", false);
+            configJson.put("encryption", encryption);
 
             // Save preferences to internal storage
             saveJsonToFile(configJson.toString());

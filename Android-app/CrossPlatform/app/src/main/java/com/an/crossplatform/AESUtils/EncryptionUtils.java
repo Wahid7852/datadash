@@ -95,6 +95,45 @@ public class EncryptionUtils {
         outputStream.close();
     }
 
+    public static void encryptFile(String password,
+                                   FileInputStream inputStream, File outputFile) throws NoSuchAlgorithmException, NoSuchPaddingException,
+            InvalidKeyException, InvalidAlgorithmParameterException, IOException, IllegalBlockSizeException,
+            BadPaddingException, InvalidKeySpecException {
+
+        final String algorithm = "AES/CBC/PKCS5Padding";
+        IvParameterSpec iv = KeyUtils.generateIv();
+        byte[] salt = new byte[16];
+        new SecureRandom().nextBytes(salt);
+
+        SecretKey key = KeyUtils.getKeyFromPassword(password, salt);
+
+        Cipher cipher = Cipher.getInstance(algorithm);
+        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+        FileOutputStream outputStream = new FileOutputStream(outputFile);
+        byte[] buffer = new byte[64];
+
+        byte[] encryptionHeader = new byte[32];
+        System.arraycopy(salt, 0, encryptionHeader, 0, 16);
+        System.arraycopy(iv.getIV(), 0, encryptionHeader, 16, 16);
+        outputStream.write(encryptionHeader); // store salt and IV in first 32 bytes of file
+
+        int bytesRead;
+
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            byte[] output = cipher.update(buffer, 0, bytesRead);
+            if (output != null) {
+                outputStream.write(output);
+            }
+        }
+
+        byte[] outputBytes = cipher.doFinal();
+        if (outputBytes != null) {
+            outputStream.write(outputBytes);
+        }
+        inputStream.close();
+        outputStream.close();
+    }
+
     public static void decryptFile(String password,
                                    File inputFile, File outputFile) throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException, IOException, IllegalBlockSizeException,
