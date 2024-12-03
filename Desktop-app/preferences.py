@@ -331,7 +331,7 @@ class PreferencesApp(QWidget):
         self.save_to_path_input.setText(config["save_to_directory"])
         self.max_filesize = config["max_filesize"]
         self.encryption_toggle.setChecked(config["encryption"])
-        self.android_encryption=(config["android_encryption"])
+        self.android_encryption = config["encryption"]
         self.show_warning_toggle.setChecked(config["show_warning"])  # Load show_warning value
         self.show_update_toggle.setChecked(config["check_update"])
         self.original_preferences = config.copy()
@@ -406,7 +406,7 @@ class PreferencesApp(QWidget):
             "save_to_directory": save_to_path,
             "max_filesize": self.max_filesize,
             "encryption": encryption,
-            "android_encryption": self.android_encryption,
+            "android_encryption": encryption,
             "show_warning": show_warning,  # Save show_warning state
             "check_update": check_update
         }
@@ -550,7 +550,7 @@ class PreferencesApp(QWidget):
             "save_to_directory": self.save_to_path_input.text(),
             "max_filesize": self.max_filesize,
             "encryption": self.encryption_toggle.isChecked(),
-            "android_encryption": self.android_encryption,
+            "android_encryption": self.encryption_toggle.isChecked(),
             "show_warning": self.show_warning_toggle.isChecked(),  # Get show_warning toggle state
             "check_update": self.show_update_toggle.isChecked()
         }
