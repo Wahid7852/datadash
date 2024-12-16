@@ -41,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_STORAGE_PERMISSION = 1;
     private static final int REQUEST_CODE_MANAGE_STORAGE_PERMISSION = 2;
+    private static boolean isFirstLaunch = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,8 +100,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnPreferences.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, PreferencesActivity.class);
-            startActivity(intent);
+            startActivity(new Intent(MainActivity.this, PreferencesActivity.class));
         });
     }
 
@@ -345,44 +345,42 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkForUpdates() {
-        if (!shouldAutoCheck()) {
-            FileLogger.log("MainActivity", "Auto-check updates is disabled");
+        if (!isFirstLaunch) {
             return;
         }
+
+        if (!shouldAutoCheck()) {
+            FileLogger.log("MainActivity", "Auto-check updates is disabled");
+            isFirstLaunch = false;
+            return;
+        }
+
         new Thread(() -> {
             String apiVersion = null;
             try {
-                // Define the API URL
                 URL url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
-
-                // Open a connection
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
 
-                // Check the response code
                 int responseCode = connection.getResponseCode();
-                if (responseCode == 200) { // Success
+                if (responseCode == 200) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
 
-                    // Read the response
                     while ((line = reader.readLine()) != null) {
                         response.append(line);
                     }
                     reader.close();
 
-                    // Parse the JSON response to extract the version value
                     JSONObject jsonObject = new JSONObject(response.toString());
                     apiVersion = jsonObject.getString("value");
-                } else {
-                    FileLogger.log("CheckForUpdates", "Failed to fetch version, Response Code: " + responseCode);
                 }
             } catch (Exception e) {
                 FileLogger.log("CheckForUpdates", "Error fetching updates", e);
             }
 
-            // Process the result on the main thread
+            isFirstLaunch = false;
             String finalApiVersion = apiVersion;
             new Handler(Looper.getMainLooper()).post(() -> processVersionCheckResult(finalApiVersion));
         }).start();
@@ -433,16 +431,22 @@ public class MainActivity extends AppCompatActivity {
                 });
 
         if (showDownloadsButton) {
-            builder.setNegativeButton("Open Downloads Page", (dialog, which) -> {
-                // Open the downloads page in a browser
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://datadashshare.vercel.app/download"));
-                startActivity(browserIntent);
+            builder.setNegativeButton("Open Settings Page", (dialog, which) -> {
+                startActivity(new Intent(MainActivity.this, PreferencesActivity.class));
             });
         }
 
         // Show the dialog
         androidx.appcompat.app.AlertDialog dialog = builder.create();
         dialog.show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (isFinishing()) {
+            isFirstLaunch = true;
+        }
     }
 
 
