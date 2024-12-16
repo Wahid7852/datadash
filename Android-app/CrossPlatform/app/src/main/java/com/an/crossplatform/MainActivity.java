@@ -45,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
         requestStoragePermissions();
 
         createConfigFileIfNotExists();
-        //createdownloadfolder();
+        //createsavefolder();
 
 
         Button btnSend = findViewById(R.id.btn_send);
@@ -309,24 +309,6 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    private void startActivityWithNetworkCheck(Class<?> destinationActivity) {
-        if (!shouldShowWarning()) {
-            startActivity(new Intent(MainActivity.this, destinationActivity));
-            return;
-        }
-
-        if (!isWifiConnected()) {
-            showNetworkStatusDialog("Please connect to a network before proceeding.", true, null);
-            return;
-        }
-
-        showNetworkStatusDialog(
-                "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
-                false,
-                () -> startActivity(new Intent(MainActivity.this, destinationActivity))
-        );
-    }
-
     private void showNetworkWarning(String message, boolean isNoConnection, Runnable onContinue) {
         if (!shouldShowWarning()) {
             if (onContinue != null) onContinue.run();
@@ -346,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-//    private void createdownloadfolder() {
+//    private void createsavefolder() {
 //        try {
 //            // Set up the path to the Downloads/DataDash directory
 //            File downloadDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DataDash");
