@@ -49,6 +49,8 @@ public class PreferencesActivity extends AppCompatActivity {
     private static final String CONFIG_FILE_NAME = "config.json";  // Config file stored in internal storage
     private ImageButton imageButton;
     private Switch encryptionSwitch;
+    private Switch warningsSwitch;
+    private Switch autoCheckSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,6 +75,8 @@ public class PreferencesActivity extends AppCompatActivity {
         Button mainMenuButton = findViewById(R.id.main_menu_button);
         Button btnCredits = findViewById(R.id.btn_credits);
         encryptionSwitch = findViewById(R.id.encryption_switch);
+        warningsSwitch = findViewById(R.id.show_warnings_switch);
+        autoCheckSwitch = findViewById(R.id.auto_check_updates_switch);
 
         // Set the app version
         TextView appVersionLabel = findViewById(R.id.app_version_label);
@@ -233,16 +237,22 @@ public class PreferencesActivity extends AppCompatActivity {
                 String deviceName = configJson.getString("device_name");
                 String saveToDirectory = configJson.getString("saveToDirectory");
                 boolean encryption = configJson.getBoolean("encryption");
+                boolean show_warn = configJson.getBoolean("show_warn");
+                boolean auto_check = configJson.getBoolean("auto_check");
 
                 // Store original preferences in a map
                 originalPreferences.put("device_name", deviceName);
                 originalPreferences.put("saveToDirectory", saveToDirectory);
                 originalPreferences.put("encryption", encryption);
+                originalPreferences.put("show_warn", true);
+                originalPreferences.put("auto_check", true);
 
                 // Set the input fields with the retrieved values
                 deviceNameInput.setText(deviceName);
                 saveToDirectoryInput.setText(saveToDirectory);
                 encryptionSwitch.setChecked(encryption);
+                warningsSwitch.setChecked(show_warn);
+                autoCheckSwitch.setChecked(auto_check);
 
             } catch (Exception e) {
                 FileLogger.log("PreferencesActivity", "Error loading preferences", e);
