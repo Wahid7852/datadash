@@ -329,8 +329,26 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    private boolean shouldAutoCheck() {
+        try {
+            File configFile = new File(Environment.getExternalStorageDirectory(),
+                    "Android/media/" + getPackageName() + "/Config/config.json");
+            if (configFile.exists()) {
+                String content = new String(java.nio.file.Files.readAllBytes(configFile.toPath()));
+                JSONObject config = new JSONObject(content);
+                return config.optBoolean("auto_check", true);
+            }
+        } catch (Exception e) {
+            FileLogger.log("MainActivity", "Error reading auto_check from config", e);
+        }
+        return true;
+    }
+
     private void checkForUpdates() {
-        // Create a new thread for the network operation
+        if (!shouldAutoCheck()) {
+            FileLogger.log("MainActivity", "Auto-check updates is disabled");
+            return;
+        }
         new Thread(() -> {
             String apiVersion = null;
             try {
