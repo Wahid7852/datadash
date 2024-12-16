@@ -154,10 +154,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void createConfigFileIfNotExists() {
         try {
-            // Use external storage for the folder path
             File configDir = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config");
             FileLogger.log("MainActivity", "Config directory path: " + configDir.getAbsolutePath());
-            // Create the config directory if it doesn't exist
+
             if (!configDir.exists()) {
                 boolean folderCreated = configDir.mkdirs();
                 if (!folderCreated) {
@@ -166,48 +165,76 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // Create config.json inside the folder
             File file = new File(configDir, "config.json");
-            if (!file.exists()) {
+            String currentVersion = getVersionName();
+            String existingDeviceName = Build.MODEL;
+            String existingSaveToDirectory = null;
+            boolean existingEncryption = false;
+            boolean shouldCreateFile = !file.exists();
+
+            // Read existing config if it exists
+            if (file.exists()) {
+                try {
+                    String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                    JSONObject existingConfig = new JSONObject(content);
+                    String configVersion = existingConfig.optString("json_version", "");
+
+                    if (configVersion.equals(currentVersion)) {
+                        FileLogger.log("MainActivity", "Config file is up to date.");
+                        return;
+                    }
+
+                    // Preserve existing values
+                    existingDeviceName = existingConfig.optString("device_name", Build.MODEL);
+                    existingSaveToDirectory = existingConfig.optString("saveToDirectory", null);
+                    existingEncryption = existingConfig.optBoolean("encryption", false);
+                    shouldCreateFile = true;
+
+                    FileLogger.log("MainActivity", "Config version mismatch. Updating config file.");
+                } catch (Exception e) {
+                    FileLogger.log("MainActivity", "Error reading existing config", e);
+                    shouldCreateFile = true;
+                }
+            }
+
+            if (shouldCreateFile) {
+                if (file.exists()) {
+                    file.delete();
+                }
                 boolean fileCreated = file.createNewFile();
                 if (fileCreated) {
                     JSONObject jsonObject = new JSONObject();
-                    String appVersion = getVersionName();
-                    String deviceName = Build.MODEL;
 
-                    File mediaDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DataDash");
-
-                    if (!mediaDir.exists()) {
-                        boolean dirCreated = mediaDir.mkdirs();
-                        if (!dirCreated) {
-                            FileLogger.log("MainActivity", "Failed to create media directory");
-                            return;
+                    // Set up default save directory if not preserved from existing config
+                    if (existingSaveToDirectory == null) {
+                        File mediaDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DataDash");
+                        if (!mediaDir.exists()) {
+                            boolean dirCreated = mediaDir.mkdirs();
+                            if (!dirCreated) {
+                                FileLogger.log("MainActivity", "Failed to create media directory");
+                                return;
+                            }
+                        }
+                        existingSaveToDirectory = mediaDir.getAbsolutePath();
+                        if (existingSaveToDirectory.startsWith("/storage/emulated/0")) {
+                            existingSaveToDirectory = existingSaveToDirectory.replace("/storage/emulated/0", "");
                         }
                     }
 
-                    // Get the full path to the media folder
-                    String saveToDirectory = mediaDir.getAbsolutePath();
-
-                    if (saveToDirectory.startsWith("/storage/emulated/0")) {
-                        saveToDirectory = saveToDirectory.replace("/storage/emulated/0", "");
-                    }
-
-                    jsonObject.put("json_version", appVersion);
-                    jsonObject.put("device_name", deviceName);
-                    jsonObject.put("saveToDirectory", saveToDirectory);
-                    FileLogger.log("MainActivity", "saveToDirectory: " + saveToDirectory);
+                    // Create JSON with preserved/default values
+                    jsonObject.put("json_version", currentVersion);
+                    jsonObject.put("device_name", existingDeviceName);
+                    jsonObject.put("saveToDirectory", existingSaveToDirectory);
                     jsonObject.put("maxFileSize", 1000000);
-                    jsonObject.put("encryption", false);
-                    
+                    jsonObject.put("encryption", existingEncryption);
+
                     try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
                         fileOutputStream.write(jsonObject.toString().getBytes());
-                        FileLogger.log("MainActivity", "Config file created and written successfully.");
+                        FileLogger.log("MainActivity", "Config file created/updated successfully.");
                     }
                 } else {
                     FileLogger.log("MainActivity", "Failed to create config.json");
                 }
-            } else {
-                FileLogger.log("MainActivity", "Config file already exists.");
             }
         } catch (Exception e) {
             FileLogger.log("MainActivity", "Error creating or writing to config.json", e);

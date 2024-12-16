@@ -364,17 +364,13 @@ public class PreferencesActivity extends AppCompatActivity {
         String saveToDirectoryURI = saveToDirectoryInput.getText().toString();
         boolean encryption = encryptionSwitch.isChecked();
 
-        // Ensure the directory path ends with a slash
         if (!saveToDirectoryURI.startsWith("/")) {
-            saveToDirectoryURI += "/";
+            saveToDirectoryURI = "/" + saveToDirectoryURI;
         }
-
-        // Ensure the directory path ends with a slash
         if (!saveToDirectoryURI.endsWith("/")) {
             saveToDirectoryURI += "/";
         }
 
-        // Convert into a path like /storage/emulated/0/Download
         String saveToDirectory = saveToDirectoryURI.substring(saveToDirectoryURI.indexOf(":", 0) + 1);
         FileLogger.log("PreferencesActivity", "Save to path: " + saveToDirectory);
 
@@ -383,26 +379,57 @@ public class PreferencesActivity extends AppCompatActivity {
             return;
         }
 
-        // Create a new JSON object with the updated preferences
-        JSONObject configJson = new JSONObject();
-        try {
-            configJson.put("device_name", deviceName);
-            configJson.put("saveToDirectory", saveToDirectory);
-            configJson.put("max_file_size", 1000000);  // 1 MB
-            configJson.put("encryption", encryption);
-
-            // Save preferences to internal storage
-            saveJsonToFile(configJson.toString());
-
-            // Notify the user that preferences were updated
+        if (hasPreferencesChanged(deviceName, saveToDirectory, encryption)) {
+            updateSpecificPreferences(deviceName, saveToDirectory, encryption);
             Toast.makeText(this, "Settings updated", Toast.LENGTH_SHORT).show();
-            FileLogger.log("PreferencesActivity", "Preferences updated: " + configJson.toString());
-        } catch (Exception e) {
-            FileLogger.log("PreferencesActivity", "Error creating JSON", e);
+        } else {
+            Toast.makeText(this, "No changes detected", Toast.LENGTH_SHORT).show();
         }
 
-        // Go back to the main screen after submitting preferences
         goToMainMenu();
+    }
+
+    private boolean hasPreferencesChanged(String newDeviceName, String newSaveToDirectory, boolean newEncryption) {
+        String originalDeviceName = (String) originalPreferences.get("device_name");
+        String originalSaveToDirectory = (String) originalPreferences.get("saveToDirectory");
+        boolean originalEncryption = (boolean) originalPreferences.getOrDefault("encryption", false);
+
+        return !newDeviceName.equals(originalDeviceName) ||
+                !newSaveToDirectory.equals(originalSaveToDirectory) ||
+                newEncryption != originalEncryption;
+    }
+
+    private void updateSpecificPreferences(String deviceName, String saveToDirectory, boolean encryption) {
+        try {
+            String jsonString = readJsonFromFile();
+            JSONObject existingConfig = jsonString != null ?
+                    new JSONObject(jsonString) : new JSONObject();
+
+            boolean updated = false;
+
+            if (!deviceName.equals(originalPreferences.get("device_name"))) {
+                existingConfig.put("device_name", deviceName);
+                updated = true;
+            }
+            if (!saveToDirectory.equals(originalPreferences.get("saveToDirectory"))) {
+                existingConfig.put("saveToDirectory", saveToDirectory);
+                updated = true;
+            }
+            if (encryption != (boolean) originalPreferences.getOrDefault("encryption", false)) {
+                existingConfig.put("encryption", encryption);
+                updated = true;
+            }
+
+            if (updated) {
+                saveJsonToFile(existingConfig.toString());
+                // Update original preferences
+                originalPreferences.put("device_name", deviceName);
+                originalPreferences.put("saveToDirectory", saveToDirectory);
+                originalPreferences.put("encryption", encryption);
+            }
+        } catch (Exception e) {
+            FileLogger.log("PreferencesActivity", "Error updating specific preferences", e);
+        }
     }
 
     // Method to save the modified JSON to internal storage
