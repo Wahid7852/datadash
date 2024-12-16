@@ -54,11 +54,15 @@ public class MainActivity extends AppCompatActivity {
 
         btnSend.setOnClickListener(v -> {
             if (!shouldShowWarning()) {
+                if (!isWifiConnected()) {
+                    showNetworkWarning("Please connect to a Wifi-network before sending files.", true, null);
+                    return;
+                }
                 startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class));
                 return;
             }
 
-            if (!isNetworkConnected()) {
+            if (!isWifiConnected()) {
                 showNetworkWarning("Please connect to a Wifi-network before sending files.", true, null);
                 return;
             }
@@ -72,11 +76,15 @@ public class MainActivity extends AppCompatActivity {
 
         btnReceive.setOnClickListener(v -> {
             if (!shouldShowWarning()) {
+                if (!isWifiConnected()) {
+                    showNetworkWarning("Please connect to a Wifi-network before receiving files.", true, null);
+                    return;
+                }
                 startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class));
                 return;
             }
 
-            if (!isNetworkConnected()) {
+            if (!isWifiConnected()) {
                 showNetworkWarning("Please connect to a Wifi-network before receiving files.", true, null);
                 return;
             }
@@ -268,7 +276,7 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private boolean isNetworkConnected() {
+    private boolean isWifiConnected() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm == null) return false;
 
@@ -278,10 +286,9 @@ public class MainActivity extends AppCompatActivity {
         NetworkCapabilities capabilities = cm.getNetworkCapabilities(activeNetwork);
         if (capabilities == null) return false;
 
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
-                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR));
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 
     private void showNetworkStatusDialog(String message, boolean isError, Runnable onPositive) {
@@ -308,7 +315,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (!isNetworkConnected()) {
+        if (!isWifiConnected()) {
             showNetworkStatusDialog("Please connect to a network before proceeding.", true, null);
             return;
         }
