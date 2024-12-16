@@ -53,47 +53,41 @@ public class MainActivity extends AppCompatActivity {
         ImageButton btnPreferences = findViewById(R.id.btn_preferences);
 
         btnSend.setOnClickListener(v -> {
-            if (!shouldShowWarning()) {
-                if (!isWifiConnected()) {
-                    showNetworkWarning("Please connect to a Wifi-network before sending files.", true, null);
-                    return;
-                }
-                startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class));
-                return;
-            }
-
             if (!isWifiConnected()) {
-                showNetworkWarning("Please connect to a Wifi-network before sending files.", true, null);
+                showNetworkWarning("Please note: No Wifi connection detected. Connection to other devices may fail.",
+                        true,
+                        () -> startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class)));
                 return;
             }
 
-            showNetworkWarning(
-                    "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
-                    false,
-                    () -> startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class))
-            );
+            if (shouldShowWarning()) {
+                showNetworkWarning(
+                        "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
+                        false,
+                        () -> startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class))
+                );
+            } else {
+                startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class));
+            }
         });
 
         btnReceive.setOnClickListener(v -> {
-            if (!shouldShowWarning()) {
-                if (!isWifiConnected()) {
-                    showNetworkWarning("Please connect to a Wifi-network before receiving files.", true, null);
-                    return;
-                }
-                startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class));
-                return;
-            }
-
             if (!isWifiConnected()) {
-                showNetworkWarning("Please connect to a Wifi-network before receiving files.", true, null);
+                showNetworkWarning("Please note: No Wifi connection detected. Connection to other devices may fail.",
+                        true,
+                        () -> startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class)));
                 return;
             }
 
-            showNetworkWarning(
-                    "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
-                    false,
-                    () -> startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class))
-            );
+            if (shouldShowWarning()) {
+                showNetworkWarning(
+                        "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
+                        false,
+                        () -> startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class))
+                );
+            } else {
+                startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class));
+            }
         });
 
         btnPreferences.setOnClickListener(v -> {
@@ -318,9 +312,9 @@ public class MainActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("Warning")
                 .setMessage(message)
-                .setPositiveButton("OK", (dialog, which) -> {
+                .setPositiveButton("Continue", (dialog, which) -> {
                     dialog.dismiss();
-                    if (!isNoConnection && onContinue != null) {
+                    if (onContinue != null) {
                         onContinue.run();
                     }
                 })
