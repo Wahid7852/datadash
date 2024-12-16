@@ -116,14 +116,13 @@ public class MainActivity extends AppCompatActivity {
                         dialog.dismiss();
                         Toast.makeText(this, "Storage permission is required. App will close.",
                                 Toast.LENGTH_SHORT).show();
-                        finish(); // Close the activity
+                        finish();
                     })
                     .setCancelable(false)
                     .show();
         }
     }
 
-    // Handle the result from permissions dialog
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -138,7 +137,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Handle result for Android 11 MANAGE_EXTERNAL_STORAGE request
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -149,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, "All files access permission denied. App will close.",
                         Toast.LENGTH_SHORT).show();
-                finish(); // Close the app if permission was denied
+                finish();
             }
         }
     }
@@ -173,17 +171,14 @@ public class MainActivity extends AppCompatActivity {
             if (!file.exists()) {
                 boolean fileCreated = file.createNewFile();
                 if (fileCreated) {
-                    // Create default JSON content and write to the file
                     JSONObject jsonObject = new JSONObject();
-                    String deviceName = Build.MODEL;  // Device name
+                    String appVersion = getVersionName();
+                    String deviceName = Build.MODEL;
 
-                    // Set the saveToDirectory to the Android/media folder within external storage
-                    // Correctly construct the media directory path
                     File mediaDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DataDash");
 
-                    // Create the media directory if it doesn't exist
                     if (!mediaDir.exists()) {
-                        boolean dirCreated = mediaDir.mkdirs();  // Create the directory if it doesn't exist
+                        boolean dirCreated = mediaDir.mkdirs();
                         if (!dirCreated) {
                             FileLogger.log("MainActivity", "Failed to create media directory");
                             return;
@@ -193,18 +188,17 @@ public class MainActivity extends AppCompatActivity {
                     // Get the full path to the media folder
                     String saveToDirectory = mediaDir.getAbsolutePath();
 
-                    // Remove the "/storage/emulated/0" prefix if it exists
                     if (saveToDirectory.startsWith("/storage/emulated/0")) {
-                        saveToDirectory = saveToDirectory.replace("/storage/emulated/0", ""); // Remove the prefix
+                        saveToDirectory = saveToDirectory.replace("/storage/emulated/0", "");
                     }
 
+                    jsonObject.put("json_version", appVersion);
                     jsonObject.put("device_name", deviceName);
-                    jsonObject.put("saveToDirectory", saveToDirectory); // Updated saveToDirectory
+                    jsonObject.put("saveToDirectory", saveToDirectory);
                     FileLogger.log("MainActivity", "saveToDirectory: " + saveToDirectory);
-                    jsonObject.put("maxFileSize", 1000000);  // 1 MB
+                    jsonObject.put("maxFileSize", 1000000);
                     jsonObject.put("encryption", false);
-
-                    // Write JSON data to the file
+                    
                     try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
                         fileOutputStream.write(jsonObject.toString().getBytes());
                         FileLogger.log("MainActivity", "Config file created and written successfully.");
