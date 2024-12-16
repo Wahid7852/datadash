@@ -38,6 +38,7 @@ import java.net.URL;
 import androidx.appcompat.app.AlertDialog;
 
 
+
 public class PreferencesActivity extends AppCompatActivity {
 
     private EditText deviceNameInput;
@@ -71,7 +72,7 @@ public class PreferencesActivity extends AppCompatActivity {
         Button submitButton = findViewById(R.id.submit_button);
         Button mainMenuButton = findViewById(R.id.main_menu_button);
         Button btnCredits = findViewById(R.id.btn_credits);
-        encryptionSwitch = findViewById(R.id.switch1);
+        encryptionSwitch = findViewById(R.id.encryption_switch);
 
         // Set the app version
         TextView appVersionLabel = findViewById(R.id.app_version_label);
