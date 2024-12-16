@@ -36,6 +36,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -59,6 +60,8 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
     private Button openFolder;
     private Button donebtn;
     private TextView txt_path;
+    private boolean isEncryptedTransfer;
+    private ArrayList<String> encryptedFiles = new ArrayList<String>();
     private ExecutorService executorService = Executors.newFixedThreadPool(2); // Using 2 threads: one for connection, one for file reception
     private static final int PORT = 57341;
     private static final int MAX_RETRIES = 3;
@@ -249,6 +252,17 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
                     if (encryptionFlag.isEmpty() || encryptionFlag.charAt(encryptionFlag.length() - 1) == 'h') {
                         FileLogger.log("ReceiveFileActivityPython", "Received all files.");
+
+                        if (isEncryptedTransfer) {
+                            Log.d("ReceiveFileActivityPython", "Transfer was encrypted.");
+                            for (String file : encryptedFiles) {
+                                Log.d("ReceiveFileActivityPython", "File: "+file);
+                            }
+                            Intent intent = new Intent(ReceiveFileActivityPython.this, Decryptor.class);
+                            intent.putStringArrayListExtra("files", encryptedFiles);
+                            startActivity(intent);
+                        }
+
                         // After file reception is complete, update the UI accordingly
                         runOnUiThread(() -> {
                             txt_waiting.setText("File transfer completed");
@@ -260,7 +274,13 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
                             donebtn.setVisibility(Button.VISIBLE);
                         });
                         forceReleasePort(PORT);
+
                         break;
+                    }
+
+                    if (encryptionFlag.charAt(encryptionFlag.length() - 1) == 't') {
+                        isEncryptedTransfer = true;
+                        Log.d("ReceiveFileActivityPython", "Received Encryption Flag.");
                     }
 
                     // Read file name size
@@ -288,10 +308,16 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
                     // Handle metadata
                     if (fileName.equals("metadata.json")) {
+                        Log.d("ReceiveFileActivityPython", "Received Metadata");
                         metadataArray = receiveMetadata(fileSize);
                         if (metadataArray != null) {
                             destinationFolder = createFolderStructure(metadataArray, targetDir.getPath());
+                            if (destinationFolder != targetDir.getPath()) {
+                                // This check means that the transfer had folders, so mark it for deletion.
+                                encryptedFiles.add(destinationFolder);
+                            }
                         }
+
                         continue;
                     }
 
@@ -352,6 +378,11 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
                             FileLogger.log("ReceiveFileActivityPython", "Received size: " + receivedSize + ", Progress: " + progress);
                             runOnUiThread(() -> progressBar.setProgress(progress));
                         }
+                    }
+
+                    if (isEncryptedTransfer) {
+                        encryptedFiles.add(receivedFile.getPath());
+                        Log.d("ReceiveFileActivityPython", "Received encrypted file: " + receivedFile.getPath());
                     }
                 }
             } catch (IOException e) {
@@ -496,7 +527,6 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
                 // Continue to the next file if there's an error with the current one
             }
         }
-
         return topLevelFolderPath; // Return the path of the created folder structure
     }
 

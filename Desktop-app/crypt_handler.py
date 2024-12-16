@@ -432,4 +432,3 @@ class Decryptor(QWidget):
 #         print(f'Password entered: {password}')
 
 #     sys.exit(app.exec())
-

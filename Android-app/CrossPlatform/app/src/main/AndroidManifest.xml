@@ -44,6 +44,7 @@
         <activity android:name=".PreferencesActivity" />
         <activity android:name=".SendFileActivityPython" />
         <activity android:name=".ReceiveFileActivityPython" />
+        <activity android:name=".Decryptor" />
         <activity android:name=".CreditsActivity" />
         <activity android:name=".TransferCompleteActivity"/>
 

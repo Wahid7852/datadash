@@ -4,13 +4,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp"
-    android:background="@drawable/dialog_background">
+    android:background="@drawable/dialog_background"
+    android:padding="16dp">
 
-    <!-- Device Name Label -->
-
-    <!-- Device Name Input -->
-
+    <!-- Credits Button -->
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/btn_credits"
         android:layout_width="wrap_content"
@@ -22,152 +19,142 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Device Name Label -->
     <TextView
         android:id="@+id/device_name_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="100dp"
+        android:layout_marginTop="16dp"
         android:text="Device Name"
         android:textColor="@android:color/white"
-        android:textSize="32sp"
+        android:textSize="20sp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_credits" />
 
+    <!-- Device Name Input -->
     <EditText
         android:id="@+id/device_name_input"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="8dp"
         android:hint="Enter Device Name"
         android:textColor="@android:color/white"
         android:textColorHint="#D4D4D4"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/device_name_label"
-        app:layout_constraintWidth_percent="1.0" />
+        app:layout_constraintTop_toBottomOf="@id/device_name_label" />
 
+    <!-- Reset Device Name Button -->
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/device_name_reset_button"
         android:layout_width="100dp"
-        android:layout_height="60dp"
-        android:layout_marginTop="4dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/state_list_drawable"
         android:text="Reset"
         android:textColor="@android:color/white"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/device_name_input" />
 
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/save_to_path_reset_button"
-        android:layout_width="100dp"
-        android:layout_height="60dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="24dp"
-        android:background="@drawable/state_list_drawable"
-        android:text="Reset"
-        android:textColor="@android:color/white"
-        app:layout_constraintStart_toEndOf="@id/save_to_path_picker_button"
-        app:layout_constraintTop_toBottomOf="@+id/save_to_path_input" />
-
+    <!-- Save to Path Label -->
     <TextView
         android:id="@+id/save_to_path_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="16dp"
         android:text="Save to Path"
         android:textColor="@android:color/white"
-        android:textSize="32sp"
+        android:textSize="20sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/device_name_reset_button" />
 
+    <!-- Save to Path Input -->
+    <EditText
+        android:id="@+id/save_to_path_input"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Select Directory"
+        android:textColor="@android:color/white"
+        android:textColorHint="#D4D4D4"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/save_to_path_label" />
+
+    <!-- Pick Directory Button -->
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/save_to_path_picker_button"
-        android:layout_width="100dp"
-        android:layout_height="60dp"
-        android:layout_marginTop="24dp"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/state_list_drawable"
         android:text="Pick Directory"
         android:textColor="@android:color/white"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/save_to_path_input" />
 
-    <EditText
-        android:id="@+id/save_to_path_input"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:hint="Select Directory"
+    <!-- Reset Save to Path Button -->
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/save_to_path_reset_button"
+        android:layout_width="wrap_content"
+        android:layout_height="50dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/state_list_drawable"
+        android:text="Reset"
         android:textColor="@android:color/white"
-        android:textColorHint="#D4D4D4"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="1.0"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/save_to_path_label"
-        app:layout_constraintWidth_percent="1.0" />
+        app:layout_constraintStart_toEndOf="@+id/save_to_path_picker_button"
+        app:layout_constraintTop_toTopOf="@+id/save_to_path_picker_button" />
 
-    <LinearLayout
-        android:id="@+id/linearLayout"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/save_to_path_input">
-
-    </LinearLayout>
-
+    <!-- Encryption Label -->
     <TextView
-        android:id="@+id/app_version_label"
+        android:id="@+id/encryption_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="60dp"
-        android:text="App Version: "
+        android:layout_marginTop="16dp"
+        android:text="Encryption"
         android:textColor="@android:color/white"
-        android:textSize="18sp"
+        android:textSize="20sp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/save_to_path_reset_button" />
+        app:layout_constraintTop_toBottomOf="@+id/save_to_path_picker_button" />
 
+    <!-- Encryption Switch -->
+    <Switch
+        android:id="@+id/switch1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/encryption_label" />
+
+    <!-- Check for Update Button -->
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/check_for_update_button"
         android:layout_width="wrap_content"
         android:layout_height="50dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
         android:background="@drawable/state_list_drawable"
         android:text="Check for Update"
         android:textColor="@android:color/white"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/app_version_label" />
+        app:layout_constraintTop_toBottomOf="@+id/switch1" />
 
-
-    <!-- Reset Device Name Button -->
-
-    <!-- Save to Path Label -->
-
-    <!-- Save to Path Input -->
-
-    <!-- Buttons for Save Path: Pick and Reset -->
-
-    <!-- Main Menu and Submit Buttons -->
-    <LinearLayout
-        android:id="@+id/buttons_layout"
+    <!-- App Version Label -->
+    <TextView
+        android:id="@+id/app_version_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:text="App Version: 1.0.0"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/save_to_path_picker_button"
-        tools:ignore="NotSibling">
+        app:layout_constraintTop_toBottomOf="@+id/check_for_update_button" />
 
-    </LinearLayout>
-
+    <!-- Main Menu Button -->
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/main_menu_button"
         android:layout_width="100dp"
-        android:layout_height="60dp"
+        android:layout_height="50dp"
         android:layout_marginStart="16dp"
         android:layout_marginBottom="16dp"
         android:background="@drawable/state_list_drawable"
@@ -176,18 +163,20 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
+    <!-- Submit Button -->
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/submit_button"
-        android:text="Submit"
         android:layout_width="100dp"
-        android:layout_height="60dp"
-        android:background="@drawable/state_list_drawable"
-        android:textColor="@android:color/white"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_height="50dp"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/state_list_drawable"
+        android:text="Submit"
+        android:textColor="@android:color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Image Button -->
     <ImageButton
         android:id="@+id/imageButton"
         android:layout_width="96dp"
