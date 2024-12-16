@@ -57,7 +57,7 @@ public class PreferencesActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                goToMainMenu();
+                toastdis();
             }
         });
 
@@ -430,12 +430,17 @@ public class PreferencesActivity extends AppCompatActivity {
     }
 
     private void goToMainMenu() {
-        Toast.makeText(this, "Settings Changes Discarded", Toast.LENGTH_SHORT).show();
         Intent mainIntent = new Intent(PreferencesActivity.this, MainActivity.class);
         startActivity(mainIntent);
         finish();
     }
 
+    private void toastdis(){
+        Toast.makeText(this, "Settings Changes Discarded", Toast.LENGTH_SHORT).show();
+        Intent mainIntent = new Intent(PreferencesActivity.this, MainActivity.class);
+        startActivity(mainIntent);
+        finish();
+    }
     private void openHelpMenu() {
         // Open the help dialog
         HelpDialog helpDialog = new HelpDialog(this);
