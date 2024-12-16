@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -51,29 +53,27 @@ public class MainActivity extends AppCompatActivity {
         ImageButton btnPreferences = findViewById(R.id.btn_preferences);
 
         btnSend.setOnClickListener(v -> {
-            // Give a warning if the device is not connected to a network
-//            if (!isNetworkConnected()) {
-//                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-//                builder.setTitle("Warning")
-//                        .setMessage("Please connect to a network before sending files.")
-//                        .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-//                        .show();
-//                return;
-//            }
+            if (shouldShowWarning() && !isNetworkConnected()) {
+                new AlertDialog.Builder(this)
+                        .setTitle("Warning")
+                        .setMessage("Please connect to a Wifi-network before sending files.")
+                        .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
+                        .show();
+                return;
+            }
             Intent intent = new Intent(MainActivity.this, DiscoverDevicesActivity.class);
             startActivity(intent);
         });
 
         btnReceive.setOnClickListener(v -> {
-            // Give a warning if the device is not connected to a network
-//            if (!isNetworkConnected()) {
-//                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-//                builder.setTitle("Warning")
-//                        .setMessage("Please connect to a network before receiving files.")
-//                        .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-//                        .show();
-//                return;
-//            }
+            if (shouldShowWarning() && !isNetworkConnected()) {
+                new AlertDialog.Builder(this)
+                        .setTitle("Warning")
+                        .setMessage("Please connect to a Wifi-network before receiving files.")
+                        .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
+                        .show();
+                return;
+            }
             Intent intent = new Intent(MainActivity.this, WaitingToReceiveActivity.class);
             startActivity(intent);
         });
@@ -227,6 +227,8 @@ public class MainActivity extends AppCompatActivity {
                     jsonObject.put("saveToDirectory", existingSaveToDirectory);
                     jsonObject.put("maxFileSize", 1000000);
                     jsonObject.put("encryption", existingEncryption);
+                    jsonObject.put("show_warn", true);
+                    jsonObject.put("auto_check", true);
 
                     try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
                         fileOutputStream.write(jsonObject.toString().getBytes());
@@ -240,6 +242,38 @@ public class MainActivity extends AppCompatActivity {
             FileLogger.log("MainActivity", "Error creating or writing to config.json", e);
         }
     }
+
+    private boolean shouldShowWarning() {
+        try {
+            File configFile = new File(Environment.getExternalStorageDirectory(),
+                    "Android/media/" + getPackageName() + "/Config/config.json");
+            if (configFile.exists()) {
+                String content = new String(java.nio.file.Files.readAllBytes(configFile.toPath()));
+                JSONObject config = new JSONObject(content);
+                return config.optBoolean("show_warn", true);
+            }
+        } catch (Exception e) {
+            FileLogger.log("MainActivity", "Error reading show_warn from config", e);
+        }
+        return true;
+    }
+
+    private boolean isNetworkConnected() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+
+        Network activeNetwork = cm.getActiveNetwork();
+        if (activeNetwork == null) return false;
+
+        NetworkCapabilities capabilities = cm.getNetworkCapabilities(activeNetwork);
+        if (capabilities == null) return false;
+
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
+                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR));
+    }
+
 
 //    private void createdownloadfolder() {
 //        try {
