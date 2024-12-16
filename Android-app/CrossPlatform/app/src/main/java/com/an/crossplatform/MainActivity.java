@@ -53,29 +53,39 @@ public class MainActivity extends AppCompatActivity {
         ImageButton btnPreferences = findViewById(R.id.btn_preferences);
 
         btnSend.setOnClickListener(v -> {
-            if (shouldShowWarning() && !isNetworkConnected()) {
-                new AlertDialog.Builder(this)
-                        .setTitle("Warning")
-                        .setMessage("Please connect to a Wifi-network before sending files.")
-                        .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-                        .show();
+            if (!shouldShowWarning()) {
+                startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class));
                 return;
             }
-            Intent intent = new Intent(MainActivity.this, DiscoverDevicesActivity.class);
-            startActivity(intent);
+
+            if (!isNetworkConnected()) {
+                showNetworkWarning("Please connect to a Wifi-network before sending files.", true, null);
+                return;
+            }
+
+            showNetworkWarning(
+                    "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
+                    false,
+                    () -> startActivity(new Intent(MainActivity.this, DiscoverDevicesActivity.class))
+            );
         });
 
         btnReceive.setOnClickListener(v -> {
-            if (shouldShowWarning() && !isNetworkConnected()) {
-                new AlertDialog.Builder(this)
-                        .setTitle("Warning")
-                        .setMessage("Please connect to a Wifi-network before receiving files.")
-                        .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-                        .show();
+            if (!shouldShowWarning()) {
+                startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class));
                 return;
             }
-            Intent intent = new Intent(MainActivity.this, WaitingToReceiveActivity.class);
-            startActivity(intent);
+
+            if (!isNetworkConnected()) {
+                showNetworkWarning("Please connect to a Wifi-network before receiving files.", true, null);
+                return;
+            }
+
+            showNetworkWarning(
+                    "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
+                    false,
+                    () -> startActivity(new Intent(MainActivity.this, WaitingToReceiveActivity.class))
+            );
         });
 
         btnPreferences.setOnClickListener(v -> {
@@ -272,6 +282,60 @@ public class MainActivity extends AppCompatActivity {
                 capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
                 (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
                         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR));
+    }
+
+    private void showNetworkStatusDialog(String message, boolean isError, Runnable onPositive) {
+        if (!shouldShowWarning()) {
+            if (onPositive != null) onPositive.run();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Warning")
+                .setMessage(message)
+                .setPositiveButton("OK", (dialog, which) -> {
+                    dialog.dismiss();
+                    if (!isError && onPositive != null) {
+                        onPositive.run();
+                    }
+                })
+                .show();
+    }
+
+    private void startActivityWithNetworkCheck(Class<?> destinationActivity) {
+        if (!shouldShowWarning()) {
+            startActivity(new Intent(MainActivity.this, destinationActivity));
+            return;
+        }
+
+        if (!isNetworkConnected()) {
+            showNetworkStatusDialog("Please connect to a network before proceeding.", true, null);
+            return;
+        }
+
+        showNetworkStatusDialog(
+                "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
+                false,
+                () -> startActivity(new Intent(MainActivity.this, destinationActivity))
+        );
+    }
+
+    private void showNetworkWarning(String message, boolean isNoConnection, Runnable onContinue) {
+        if (!shouldShowWarning()) {
+            if (onContinue != null) onContinue.run();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Warning")
+                .setMessage(message)
+                .setPositiveButton("OK", (dialog, which) -> {
+                    dialog.dismiss();
+                    if (!isNoConnection && onContinue != null) {
+                        onContinue.run();
+                    }
+                })
+                .show();
     }
 
 
