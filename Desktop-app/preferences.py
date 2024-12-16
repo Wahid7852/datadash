@@ -418,7 +418,6 @@ class PreferencesApp(QWidget):
         self.save_to_path_input.setText(config["save_to_directory"])
         self.max_filesize = config["max_filesize"]
         self.encryption_toggle.setChecked(config["encryption"])
-        self.android_encryption = (config["android_encryption"])
         self.swift_encryption = (config["swift_encryption"])
         self.show_warning_toggle.setChecked(config["show_warning"])  # Load show_warning value
         self.show_update_toggle.setChecked(config["check_update"])
@@ -427,7 +426,6 @@ class PreferencesApp(QWidget):
         self.channel_dropdown.setCurrentIndex(channel_index)
         self.original_preferences = config.copy()
         logger.info("Loaded preferences- json_version: %s", self.version)
-        logger.info("Loaded preferences- android_encryption: %s", self.android_encryption)
         logger.info("Loaded preferences- swift_encryption: %s", self.swift_encryption)
         logger.info("Loaded preferences- show_warning: %s", self.show_warning_toggle.isChecked())
         logger.info("Loaded preferences- check_update: %s", self.show_update_toggle.isChecked())
@@ -651,7 +649,6 @@ class PreferencesApp(QWidget):
             "save_to_directory": self.save_to_path_input.text(),
             "max_filesize": self.max_filesize,
             "encryption": self.encryption_toggle.isChecked(),
-            "android_encryption": self.android_encryption,
             "swift_encryption": self.swift_encryption,
             "show_warning": self.show_warning_toggle.isChecked(),
             "check_update": self.show_update_toggle.isChecked()
@@ -964,7 +961,7 @@ class PreferencesApp(QWidget):
         elif channel == "beta":
         #beta version
             download_links = {
-               ('windows', 'x64'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20x64).exe',
+                ('windows', 'x64'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20x64).exe',
                 ('windows', 'arm'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20arm).exe',
                 ('linux', 'x64'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(linux%20x64)',
                 ('linux', 'arm'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(linux%20arm)',
