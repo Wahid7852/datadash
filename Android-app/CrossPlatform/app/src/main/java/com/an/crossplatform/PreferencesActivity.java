@@ -374,6 +374,8 @@ public class PreferencesActivity extends AppCompatActivity {
         String deviceName = deviceNameInput.getText().toString();
         String saveToDirectoryURI = saveToDirectoryInput.getText().toString();
         boolean encryption = encryptionSwitch.isChecked();
+        boolean showWarnings = warningsSwitch.isChecked();
+        boolean autoCheck = autoCheckSwitch.isChecked();
 
         if (!saveToDirectoryURI.startsWith("/")) {
             saveToDirectoryURI = "/" + saveToDirectoryURI;
@@ -390,8 +392,8 @@ public class PreferencesActivity extends AppCompatActivity {
             return;
         }
 
-        if (hasPreferencesChanged(deviceName, saveToDirectory, encryption)) {
-            updateSpecificPreferences(deviceName, saveToDirectory, encryption);
+        if (hasPreferencesChanged(deviceName, saveToDirectory, encryption, showWarnings, autoCheck)) {
+            updateSpecificPreferences(deviceName, saveToDirectory, encryption, showWarnings, autoCheck);
             Toast.makeText(this, "Settings updated", Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, "No changes detected", Toast.LENGTH_SHORT).show();
@@ -400,17 +402,23 @@ public class PreferencesActivity extends AppCompatActivity {
         goToMainMenu();
     }
 
-    private boolean hasPreferencesChanged(String newDeviceName, String newSaveToDirectory, boolean newEncryption) {
+    private boolean hasPreferencesChanged(String newDeviceName, String newSaveToDirectory,
+                                          boolean newEncryption, boolean newShowWarnings, boolean newAutoCheck) {
         String originalDeviceName = (String) originalPreferences.get("device_name");
         String originalSaveToDirectory = (String) originalPreferences.get("saveToDirectory");
         boolean originalEncryption = (boolean) originalPreferences.getOrDefault("encryption", false);
+        boolean originalShowWarnings = (boolean) originalPreferences.getOrDefault("show_warn", true);
+        boolean originalAutoCheck = (boolean) originalPreferences.getOrDefault("auto_check", true);
 
         return !newDeviceName.equals(originalDeviceName) ||
                 !newSaveToDirectory.equals(originalSaveToDirectory) ||
-                newEncryption != originalEncryption;
+                newEncryption != originalEncryption ||
+                newShowWarnings != originalShowWarnings ||
+                newAutoCheck != originalAutoCheck;
     }
 
-    private void updateSpecificPreferences(String deviceName, String saveToDirectory, boolean encryption) {
+    private void updateSpecificPreferences(String deviceName, String saveToDirectory,
+                                           boolean encryption, boolean showWarnings, boolean autoCheck) {
         try {
             String jsonString = readJsonFromFile();
             JSONObject existingConfig = jsonString != null ?
@@ -430,6 +438,14 @@ public class PreferencesActivity extends AppCompatActivity {
                 existingConfig.put("encryption", encryption);
                 updated = true;
             }
+            if (showWarnings != (boolean) originalPreferences.getOrDefault("show_warn", true)) {
+                existingConfig.put("show_warn", showWarnings);
+                updated = true;
+            }
+            if (autoCheck != (boolean) originalPreferences.getOrDefault("auto_check", true)) {
+                existingConfig.put("auto_check", autoCheck);
+                updated = true;
+            }
 
             if (updated) {
                 saveJsonToFile(existingConfig.toString());
@@ -437,6 +453,8 @@ public class PreferencesActivity extends AppCompatActivity {
                 originalPreferences.put("device_name", deviceName);
                 originalPreferences.put("saveToDirectory", saveToDirectory);
                 originalPreferences.put("encryption", encryption);
+                originalPreferences.put("show_warn", showWarnings);
+                originalPreferences.put("auto_check", autoCheck);
             }
         } catch (Exception e) {
             FileLogger.log("PreferencesActivity", "Error updating specific preferences", e);
