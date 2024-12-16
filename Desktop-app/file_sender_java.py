@@ -62,7 +62,7 @@ class FileSenderJava(QThread):
         # Reload config on each file transfer session
         self.config = get_config()
 
-        self.encryption_flag = self.config['android_encryption']
+        self.encryption_flag = self.config['encryption']
         # logger.debug("Encryption flag: %s", self.encryption_flag)
 
         for file_path in self.file_paths:
@@ -255,7 +255,7 @@ class SendAppJava(QWidget):
 
     def initUI(self):
         self.config = get_config()
-        logger.debug("Encryption : %s", self.config['android_encryption'])
+        logger.debug("Encryption : %s", self.config['encryption'])
         self.setWindowTitle('Send File')
         self.setGeometry(100, 100, 400, 300)
         self.center_window()
@@ -310,7 +310,7 @@ class SendAppJava(QWidget):
         content_layout.addWidget(self.file_path_display)
 
         # Password input (if encryption is enabled)
-        if self.config['android_encryption']:
+        if self.config['encryption']:
             password_layout = QHBoxLayout()
             self.password_label = QLabel('Encryption Password:')
             self.password_label.setStyleSheet("color: white; font-size: 14px;")
@@ -490,7 +490,7 @@ class SendAppJava(QWidget):
         ip_address = self.ip_address
         print(self.file_paths)
 
-        if self.config['android_encryption']:
+        if self.config['encryption']:
             password = self.password_input.text()
             if not self.password_input.text():
                 QMessageBox.critical(None, "Password Error", "Please enter a password.")

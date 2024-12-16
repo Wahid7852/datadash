@@ -254,9 +254,9 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
                         FileLogger.log("ReceiveFileActivityPython", "Received all files.");
 
                         if (isEncryptedTransfer) {
-                            Log.d("ReceiveFileActivityPython", "Transfer was encrypted.");
+                            FileLogger.log("ReceiveFileActivityPython", "Transfer was encrypted.");
                             for (String file : encryptedFiles) {
-                                Log.d("ReceiveFileActivityPython", "File: "+file);
+                                FileLogger.log("ReceiveFileActivityPython", "File: "+file);
                             }
                             Intent intent = new Intent(ReceiveFileActivityPython.this, Decryptor.class);
                             intent.putStringArrayListExtra("files", encryptedFiles);
@@ -280,7 +280,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
                     if (encryptionFlag.charAt(encryptionFlag.length() - 1) == 't') {
                         isEncryptedTransfer = true;
-                        Log.d("ReceiveFileActivityPython", "Received Encryption Flag.");
+                        FileLogger.log("ReceiveFileActivityPython", "Received Encryption Flag.");
                     }
 
                     // Read file name size
@@ -308,7 +308,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
                     // Handle metadata
                     if (fileName.equals("metadata.json")) {
-                        Log.d("ReceiveFileActivityPython", "Received Metadata");
+                        FileLogger.log("ReceiveFileActivityPython", "Received Metadata");
                         metadataArray = receiveMetadata(fileSize);
                         if (metadataArray != null) {
                             destinationFolder = createFolderStructure(metadataArray, targetDir.getPath());
@@ -382,7 +382,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
                     if (isEncryptedTransfer) {
                         encryptedFiles.add(receivedFile.getPath());
-                        Log.d("ReceiveFileActivityPython", "Received encrypted file: " + receivedFile.getPath());
+                        FileLogger.log("ReceiveFileActivityPython", "Received encrypted file: " + receivedFile.getPath());
                     }
                 }
             } catch (IOException e) {

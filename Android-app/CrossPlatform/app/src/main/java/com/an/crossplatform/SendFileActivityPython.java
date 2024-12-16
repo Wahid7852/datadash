@@ -675,9 +675,9 @@ public class SendFileActivityPython extends AppCompatActivity {
                                 // Add ".crypt" to relative path
                                 finalPathToSend += ".crypt";
 
-                                Log.d("SendFileActivity", "Encrypted file to send: " + encryptedFile.getAbsolutePath());
+                                FileLogger.log("SendFileActivity", "Encrypted file to send: " + encryptedFile.getAbsolutePath());
                             } catch (Exception e) {
-                                Log.e("SendFileActivity", "Error encrypting file", e);
+                                FileLogger.log("SendFileActivity", "Error encrypting file", e);
                                 return; // Stop further processing if encryption fails
                             }
                         }
@@ -830,7 +830,7 @@ public class SendFileActivityPython extends AppCompatActivity {
         File configFile = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config/config.json");
 
         try {
-            Log.e("ReceiveFileActivityPython", "Config file path: " + configFile.getAbsolutePath()); // Log the config path
+            FileLogger.log("ReceiveFileActivityPython", "Config file path: " + configFile.getAbsolutePath()); // Log the config path
             FileInputStream fis = new FileInputStream(configFile);
             BufferedReader reader = new BufferedReader(new InputStreamReader(fis));
             StringBuilder jsonBuilder = new StringBuilder();
@@ -842,7 +842,7 @@ public class SendFileActivityPython extends AppCompatActivity {
             JSONObject json = new JSONObject(jsonBuilder.toString());
             encryption = json.optBoolean("encryption", false);
         } catch (Exception e) {
-            Log.e("ReceiveFileActivityPython", "Error loading saveToDirectory from config", e);
+            FileLogger.log("ReceiveFileActivityPython", "Error loading saveToDirectory from config", e);
         }
         return encryption;
     }
