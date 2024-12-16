@@ -1,6 +1,5 @@
 package com.an.crossplatform;
 
-import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
@@ -13,13 +12,11 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.util.Log;
 import android.widget.Button;
 import android.widget.ImageButton;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 
 import org.json.JSONObject;
 
@@ -33,7 +30,6 @@ import java.net.URL;
 import android.content.Context;
 import android.app.AlertDialog;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.widget.Toast;
 
 
@@ -389,10 +385,7 @@ public class MainActivity extends AppCompatActivity {
     private void processVersionCheckResult(String apiVersion) {
         if (apiVersion != null) {
             try {
-                // Get the app's version
                 String appVersion = getVersionName();
-
-                // Split both versions into parts
                 String[] apiParts = apiVersion.split("\\.");
                 String[] appParts = appVersion.split("\\.");
 
@@ -404,14 +397,8 @@ public class MainActivity extends AppCompatActivity {
                     if (apiPart > appPart) {
                         showMessageDialog("App is older", "Your app version is outdated. Please update to the latest version.", true);
                         return;
-                    } else if (apiPart < appPart) {
-                        showMessageDialog("Please downgrade", "Your app version is newer than the publicly available version. Downgrade to ensure compatibility.", true);
-                        return;
                     }
                 }
-
-                // If all parts are equal
-                showMessageDialog("Version is up to date", "Your app is up to date.", false);
             } catch (Exception e) {
                 FileLogger.log("CheckForUpdates", "Error parsing version", e);
                 showMessageDialog("Error", "Error checking for updates.", false);
