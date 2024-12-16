@@ -10,6 +10,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Button;
@@ -21,8 +23,13 @@ import androidx.core.app.ActivityCompat;
 
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 import android.content.Context;
 import android.app.AlertDialog;
 import android.net.ConnectivityManager;
@@ -46,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
 
         createConfigFileIfNotExists();
         //createsavefolder();
+        checkForUpdates();
 
 
         Button btnSend = findViewById(R.id.btn_send);
@@ -319,6 +327,104 @@ public class MainActivity extends AppCompatActivity {
                     }
                 })
                 .show();
+    }
+
+    private void checkForUpdates() {
+        // Create a new thread for the network operation
+        new Thread(() -> {
+            String apiVersion = null;
+            try {
+                // Define the API URL
+                URL url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
+
+                // Open a connection
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+
+                // Check the response code
+                int responseCode = connection.getResponseCode();
+                if (responseCode == 200) { // Success
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+
+                    // Read the response
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    // Parse the JSON response to extract the version value
+                    JSONObject jsonObject = new JSONObject(response.toString());
+                    apiVersion = jsonObject.getString("value");
+                } else {
+                    FileLogger.log("CheckForUpdates", "Failed to fetch version, Response Code: " + responseCode);
+                }
+            } catch (Exception e) {
+                FileLogger.log("CheckForUpdates", "Error fetching updates", e);
+            }
+
+            // Process the result on the main thread
+            String finalApiVersion = apiVersion;
+            new Handler(Looper.getMainLooper()).post(() -> processVersionCheckResult(finalApiVersion));
+        }).start();
+    }
+
+    private void processVersionCheckResult(String apiVersion) {
+        if (apiVersion != null) {
+            try {
+                // Get the app's version
+                String appVersion = getVersionName();
+
+                // Split both versions into parts
+                String[] apiParts = apiVersion.split("\\.");
+                String[] appParts = appVersion.split("\\.");
+
+                // Compare the versions part by part
+                for (int i = 0; i < Math.min(apiParts.length, appParts.length); i++) {
+                    int apiPart = Integer.parseInt(apiParts[i]);
+                    int appPart = Integer.parseInt(appParts[i]);
+
+                    if (apiPart > appPart) {
+                        showMessageDialog("App is older", "Your app version is outdated. Please update to the latest version.", true);
+                        return;
+                    } else if (apiPart < appPart) {
+                        showMessageDialog("Please downgrade", "Your app version is newer than the publicly available version. Downgrade to ensure compatibility.", true);
+                        return;
+                    }
+                }
+
+                // If all parts are equal
+                showMessageDialog("Version is up to date", "Your app is up to date.", false);
+            } catch (Exception e) {
+                FileLogger.log("CheckForUpdates", "Error parsing version", e);
+                showMessageDialog("Error", "Error checking for updates.", false);
+            }
+        } else {
+            showMessageDialog("Error", "Failed to check for updates.", false);
+        }
+    }
+
+    private void showMessageDialog(String title, String message, boolean showDownloadsButton) {
+        // Build the dialog
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("Close", (dialog, which) -> {
+                    dialog.dismiss(); // Dismiss the dialog when "Close" is clicked
+                });
+
+        if (showDownloadsButton) {
+            builder.setNegativeButton("Open Downloads Page", (dialog, which) -> {
+                // Open the downloads page in a browser
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://datadashshare.vercel.app/download"));
+                startActivity(browserIntent);
+            });
+        }
+
+        // Show the dialog
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
 
