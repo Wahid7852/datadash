@@ -6,7 +6,7 @@ import socket
 
 # Define the config file name and current version
 config_file_name = ".config.json"
-current_version = "4.0.1"  # Set the current version of the json config file (app version)
+current_version = "4.0.2"  # Set the current version of the json config file (app version)
 
 
 def get_logger_file_path():
@@ -119,7 +119,6 @@ if not os.path.exists(config_file):
         "save_to_directory": file_path,
         "max_filesize": 1000,
         "encryption": False,
-        "android_encryption": False,
         "swift_encryption": False,
         "show_warning": True,
         "check_update": True,
@@ -148,7 +147,6 @@ else:
             "save_to_directory": save_to_directory,
             "max_filesize": 1000,
             "encryption": encryption,
-            "android_encryption": False,
             "swift_encryption": False,
             "show_warning": warnings,
             "check_update": True,
