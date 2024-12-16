@@ -244,8 +244,8 @@ public class PreferencesActivity extends AppCompatActivity {
                 originalPreferences.put("device_name", deviceName);
                 originalPreferences.put("saveToDirectory", saveToDirectory);
                 originalPreferences.put("encryption", encryption);
-                originalPreferences.put("show_warn", true);
-                originalPreferences.put("auto_check", true);
+                originalPreferences.put("show_warn", show_warn);
+                originalPreferences.put("auto_check", auto_check);
 
                 // Set the input fields with the retrieved values
                 deviceNameInput.setText(deviceName);
