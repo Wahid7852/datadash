@@ -389,16 +389,29 @@ public class MainActivity extends AppCompatActivity {
                 String[] apiParts = apiVersion.split("\\.");
                 String[] appParts = appVersion.split("\\.");
 
-                // Compare the versions part by part
-                for (int i = 0; i < Math.min(apiParts.length, appParts.length); i++) {
-                    int apiPart = Integer.parseInt(apiParts[i]);
-                    int appPart = Integer.parseInt(appParts[i]);
+                int[] apiNums = new int[Math.max(3, apiParts.length)];
+                int[] appNums = new int[Math.max(3, appParts.length)];
 
-                    if (apiPart > appPart) {
-                        showMessageDialog("App is older", "Your app version is outdated. Please update to the latest version.", true);
+                for (int i = 0; i < apiParts.length; i++) {
+                    apiNums[i] = Integer.parseInt(apiParts[i]);
+                }
+                for (int i = 0; i < appParts.length; i++) {
+                    appNums[i] = Integer.parseInt(appParts[i]);
+                }
+
+                for (int i = 0; i < Math.max(apiNums.length, appNums.length); i++) {
+                    if (apiNums[i] < appNums[i]) {
+                        return;
+                    } else if (apiNums[i] > appNums[i]) {
+                        showMessageDialog("Update Available",
+                                "A newer version (" + apiVersion + ") is available. Please update your app.",
+                                true);
                         return;
                     }
                 }
+
+                return;
+
             } catch (Exception e) {
                 FileLogger.log("CheckForUpdates", "Error parsing version", e);
                 showMessageDialog("Error", "Error checking for updates.", false);
@@ -409,12 +422,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showMessageDialog(String title, String message, boolean showDownloadsButton) {
-        // Build the dialog
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
         builder.setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("Close", (dialog, which) -> {
-                    dialog.dismiss(); // Dismiss the dialog when "Close" is clicked
+                    dialog.dismiss();
                 });
 
         if (showDownloadsButton) {
@@ -423,7 +435,6 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        // Show the dialog
         androidx.appcompat.app.AlertDialog dialog = builder.create();
         dialog.show();
     }

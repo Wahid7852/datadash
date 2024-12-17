@@ -164,35 +164,32 @@ public class PreferencesActivity extends AppCompatActivity {
         }).start();
     }
 
-    // Method to process the version check result on the main thread
     private void processVersionCheckResult(String apiVersion) {
         if (apiVersion != null) {
             try {
-                // Get the app's version
                 String appVersion = getVersionName();
 
-                // Split both versions into parts
-                String[] apiParts = apiVersion.split("\\.");
-                String[] appParts = appVersion.split("\\.");
+                int[] apiNums = convertVersionToNumbers(apiVersion);
+                int[] appNums = convertVersionToNumbers(appVersion);
 
-                // Compare the versions part by part
-                for (int i = 0; i < Math.min(apiParts.length, appParts.length); i++) {
-                    int apiPart = Integer.parseInt(apiParts[i]);
-                    int appPart = Integer.parseInt(appParts[i]);
+                int comparison = compareVersions(appNums, apiNums);
 
-                    if (apiPart > appPart) {
-                        showMessageDialog("App is older", "Your app version is outdated. Please update to the latest version.", true);
-                        return;
-                    } else if (apiPart < appPart) {
-                        showMessageDialog("Please downgrade", "Your app version is newer than the publicly available version. Downgrade to ensure compatibility.", true);
-                        return;
-                    }
+                if (comparison < 0) {
+                    showMessageDialog("Update Available",
+                            "Your app version " + appVersion + " is outdated. Latest version is " + apiVersion,
+                            true);
+                } else if (comparison > 0) {
+                    showMessageDialog("Development Version",
+                            "Your app version " + appVersion + " is newer than the released version " + apiVersion,
+                            false);
+                } else {
+                    showMessageDialog("Up to Date",
+                            "Your app is running the latest version " + appVersion,
+                            false);
                 }
 
-                // If all parts are equal
-                showMessageDialog("Version is up to date", "Your app is up to date.", false);
             } catch (Exception e) {
-                FileLogger.log("CheckForUpdates", "Error parsing version", e);
+                FileLogger.log("CheckForUpdates", "Error comparing versions", e);
                 showMessageDialog("Error", "Error checking for updates.", false);
             }
         } else {
@@ -200,18 +197,36 @@ public class PreferencesActivity extends AppCompatActivity {
         }
     }
 
-    // Helper method to show a message
-    private void showMessage(String message) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    private int[] convertVersionToNumbers(String version) {
+        String[] parts = version.split("\\.");
+        int[] numbers = new int[3];
+
+        for (int i = 0; i < parts.length && i < 3; i++) {
+            try {
+                numbers[i] = Integer.parseInt(parts[i]);
+            } catch (NumberFormatException e) {
+                numbers[i] = 0;
+            }
+        }
+
+        return numbers;
+    }
+
+    private int compareVersions(int[] version1, int[] version2) {
+        for (int i = 0; i < 3; i++) {
+            if (version1[i] != version2[i]) {
+                return Integer.compare(version1[i], version2[i]);
+            }
+        }
+        return 0;
     }
 
     private void showMessageDialog(String title, String message, boolean showDownloadsButton) {
-        // Build the dialog
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("Close", (dialog, which) -> {
-                    dialog.dismiss(); // Dismiss the dialog when "Close" is clicked
+                    dialog.dismiss();
                 });
 
         if (showDownloadsButton) {
