@@ -233,6 +233,7 @@ public class PreferencesActivity extends AppCompatActivity {
         if (apiVersion != null) {
             try {
                 String appVersion = getVersionName();
+                String channel = loadchannel();
 
                 int[] apiNums = convertVersionToNumbers(apiVersion);
                 int[] appNums = convertVersionToNumbers(appVersion);
@@ -242,23 +243,26 @@ public class PreferencesActivity extends AppCompatActivity {
                 if (comparison < 0) {
                     showMessageDialog("Update Available",
                             "Your app version " + appVersion + " is outdated. Latest version is " + apiVersion,
-                            true);
+                            true,
+                            channel);
                 } else if (comparison > 0) {
                     showMessageDialog("Development Version",
                             "Your app version " + appVersion + " is newer than the released version " + apiVersion,
-                            true);
+                            true,
+                            channel);
                 } else {
                     showMessageDialog("Up to Date",
                             "Your app is running the latest version " + appVersion,
-                            false);
+                            false,
+                            channel);
                 }
 
             } catch (Exception e) {
                 FileLogger.log("CheckForUpdates", "Error comparing versions", e);
-                showMessageDialog("Error", "Error checking for updates.", false);
+                showMessageDialog("Error", "Error checking for updates.", false, "stable");
             }
         } else {
-            showMessageDialog("Error", "Failed to check for updates.", false);
+            showMessageDialog("Error", "Failed to check for updates.", false, "stable");
         }
     }
 
@@ -286,15 +290,20 @@ public class PreferencesActivity extends AppCompatActivity {
         return 0;
     }
 
-    private void showMessageDialog(String title, String message, boolean showDownloadsButton) {
+    private void showMessageDialog(String title, String message, boolean showDownloadsButton, String channel) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(title)
                 .setMessage(message)
                 .setPositiveButton("Close", (dialog, which) -> dialog.dismiss());
 
         if (showDownloadsButton) {
-            builder.setNegativeButton("Open Downloads Page", (dialog, which) -> {
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://datadashshare.vercel.app/download"));
+            String buttonText = channel.equals("beta") ? "Open Beta Page" : "Open Downloads Page";
+            String url = channel.equals("beta") ?
+                    "https://datadashshare.vercel.app/beta" :
+                    "https://datadashshare.vercel.app/download";
+
+            builder.setNegativeButton(buttonText, (dialog, which) -> {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                 startActivity(browserIntent);
             });
 
