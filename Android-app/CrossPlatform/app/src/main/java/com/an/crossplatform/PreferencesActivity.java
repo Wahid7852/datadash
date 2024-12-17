@@ -178,36 +178,50 @@ public class PreferencesActivity extends AppCompatActivity {
             FileLogger.log("AppVersion", "Version Name not found", e);
             return "Unknown";
         }
-
     }
 
     private void checkForUpdates() {
+        String channel = loadchannel();
+        FileLogger.log("CheckForUpdates", "Checking for updates on Update channel: " + channel);
+
         new Thread(() -> {
             String apiVersion = null;
-            try {
-                URL url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
+            HttpURLConnection connection = null;
 
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            try {
+                URL url;
+                if (channel.equals("beta")) {
+                    url = new URL("https://datadashshare.vercel.app/api/platformNumberbeta?platform=android");
+                } else {
+                    url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
+                }
+
+                connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
 
                 int responseCode = connection.getResponseCode();
                 if (responseCode == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(connection.getInputStream()))) {
+                        StringBuilder response = new StringBuilder();
+                        String line;
 
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
+                        while ((line = reader.readLine()) != null) {
+                            response.append(line);
+                        }
+
+                        JSONObject jsonObject = new JSONObject(response.toString());
+                        apiVersion = jsonObject.getString("value");
                     }
-                    reader.close();
-
-                    JSONObject jsonObject = new JSONObject(response.toString());
-                    apiVersion = jsonObject.getString("value");
                 } else {
                     FileLogger.log("CheckForUpdates", "Failed to fetch version, Response Code: " + responseCode);
                 }
             } catch (Exception e) {
                 FileLogger.log("CheckForUpdates", "Error fetching updates", e);
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
 
             String finalApiVersion = apiVersion;
@@ -354,6 +368,19 @@ public class PreferencesActivity extends AppCompatActivity {
         } else {
             setDefaults();
         }
+    }
+
+    private String loadchannel() {
+        String jsonString = readJsonFromFile();
+        try {
+            if (jsonString != null) {
+                JSONObject configJson = new JSONObject(jsonString);
+                return configJson.optString("update_channel", "stable");
+            }
+        } catch (Exception e) {
+            FileLogger.log("PreferencesActivity", "Error loading update channel", e);
+        }
+        return "stable";
     }
 
     private void setDefaults() {
