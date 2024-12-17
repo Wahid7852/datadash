@@ -37,4 +37,9 @@
     <item name="android:textColor">@android:color/white</item>
     <item name="android:padding">@dimen/spacing_normal</item>
 </style>
+
+    <string-array name="update_channels">
+        <item>Stable</item>
+        <item>Beta</item>
+    </string-array>
 </resources>

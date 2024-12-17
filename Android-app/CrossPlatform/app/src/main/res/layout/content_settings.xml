@@ -141,6 +141,21 @@
         android:text="Check for Update"
         android:textColor="@android:color/white" />
 
+    <TextView
+        android:id="@+id/update_channel_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Update Channel"
+        android:textColor="@android:color/white"
+        android:textSize="20sp" />
+
+    <Spinner
+        android:id="@+id/update_channel_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" />
+
 
 
 </LinearLayout>

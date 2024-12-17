@@ -5,9 +5,13 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
+import android.view.View;
 import android.view.Window;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.Toast;
 
@@ -54,6 +58,7 @@ public class PreferencesActivity extends AppCompatActivity {
     private Switch encryptionSwitch;
     private Switch warningsSwitch;
     private Switch autoCheckSwitch;
+    private Spinner updateChannelSpinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,6 +86,28 @@ public class PreferencesActivity extends AppCompatActivity {
         warningsSwitch = findViewById(R.id.show_warnings_switch);
         autoCheckSwitch = findViewById(R.id.auto_check_updates_switch);
 
+        updateChannelSpinner = findViewById(R.id.update_channel_spinner);
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.update_channels, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        updateChannelSpinner.setAdapter(adapter);
+
+        // Set initial value from config
+        String savedChannel = getSavedUpdateChannel();
+        updateChannelSpinner.setSelection(savedChannel.equals("beta") ? 1 : 0);
+
+        // Add listener for instant updates
+        updateChannelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selectedChannel = position == 0 ? "stable" : "beta";
+                updateChannelInConfig(selectedChannel);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
         // Set the app version
         TextView appVersionLabel = findViewById(R.id.app_version_label);
         appVersionLabel.setText("App Version: " + getVersionName());
@@ -107,6 +134,35 @@ public class PreferencesActivity extends AppCompatActivity {
         checkForUpdateButton.setOnClickListener(v -> checkForUpdates());
     }
 
+    private String getSavedUpdateChannel() {
+        try {
+            String jsonString = readJsonFromFile();
+            if (jsonString != null) {
+                JSONObject config = new JSONObject(jsonString);
+                return config.optString("update_channel", "stable");
+            }
+        } catch (Exception e) {
+            FileLogger.log("PreferencesActivity", "Error reading update channel", e);
+        }
+        return "stable";
+    }
+
+    private void updateChannelInConfig(String channel) {
+        try {
+            String jsonString = readJsonFromFile();
+            JSONObject config = jsonString != null ?
+                    new JSONObject(jsonString) : new JSONObject();
+
+            config.put("update_channel", channel);
+            saveJsonToFile(config.toString());
+
+            Toast.makeText(this, "Update channel changed to " + channel,
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            FileLogger.log("PreferencesActivity", "Error updating channel", e);
+        }
+    }
+    
     // Method to get version name dynamically
     private String getVersionName() {
         try {

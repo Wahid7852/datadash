@@ -245,6 +245,7 @@ public class MainActivity extends AppCompatActivity {
                     jsonObject.put("encryption", existingEncryption);
                     jsonObject.put("show_warn", true);
                     jsonObject.put("auto_check", true);
+                    jsonObject.put("update_channel", "stable");
 
                     try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
                         fileOutputStream.write(jsonObject.toString().getBytes());
