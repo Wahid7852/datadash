@@ -53,12 +53,13 @@ public class PreferencesActivity extends AppCompatActivity {
     private Map<String, Object> originalPreferences = new HashMap<>();
 
     private static final String CONFIG_FOLDER_NAME = "config";
-    private static final String CONFIG_FILE_NAME = "config.json";  // Config file stored in internal storage
+    private static final String CONFIG_FILE_NAME = "config.json";
     private ImageButton imageButton;
     private Switch encryptionSwitch;
     private Switch warningsSwitch;
     private Switch autoCheckSwitch;
     private Spinner updateChannelSpinner;
+    private boolean isInitialLoad = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,7 +97,6 @@ public class PreferencesActivity extends AppCompatActivity {
         String savedChannel = getSavedUpdateChannel();
         updateChannelSpinner.setSelection(savedChannel.equals("beta") ? 1 : 0);
 
-        // Add listener for instant updates
         updateChannelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -112,7 +112,6 @@ public class PreferencesActivity extends AppCompatActivity {
         TextView appVersionLabel = findViewById(R.id.app_version_label);
         appVersionLabel.setText("App Version: " + getVersionName());
 
-        // Load saved preferences from internal storage
         loadPreferences();
 
         resetDeviceNameButton.setOnClickListener(v -> resetDeviceName());
@@ -126,10 +125,8 @@ public class PreferencesActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // Fetch version name and set it to the TextView
         String versionName = getVersionName();
 
-        // Handle "Check for Update" button click
         Button checkForUpdateButton = findViewById(R.id.check_for_update_button);
         checkForUpdateButton.setOnClickListener(v -> checkForUpdates());
     }
@@ -156,14 +153,16 @@ public class PreferencesActivity extends AppCompatActivity {
             config.put("update_channel", channel);
             saveJsonToFile(config.toString());
 
-            Toast.makeText(this, "Update channel changed to " + channel,
-                    Toast.LENGTH_SHORT).show();
+            if (!isInitialLoad) {
+                Toast.makeText(this, "Update channel changed to " + channel,
+                        Toast.LENGTH_SHORT).show();
+            }
+            isInitialLoad = false;
         } catch (Exception e) {
             FileLogger.log("PreferencesActivity", "Error updating channel", e);
         }
     }
-    
-    // Method to get version name dynamically
+
     private String getVersionName() {
         try {
             // Fetch version name from the app's PackageInfo
@@ -183,31 +182,25 @@ public class PreferencesActivity extends AppCompatActivity {
     }
 
     private void checkForUpdates() {
-        // Create a new thread for the network operation
         new Thread(() -> {
             String apiVersion = null;
             try {
-                // Define the API URL
                 URL url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
 
-                // Open a connection
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
 
-                // Check the response code
                 int responseCode = connection.getResponseCode();
-                if (responseCode == 200) { // Success
+                if (responseCode == 200) {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                     StringBuilder response = new StringBuilder();
                     String line;
 
-                    // Read the response
                     while ((line = reader.readLine()) != null) {
                         response.append(line);
                     }
                     reader.close();
 
-                    // Parse the JSON response to extract the version value
                     JSONObject jsonObject = new JSONObject(response.toString());
                     apiVersion = jsonObject.getString("value");
                 } else {
@@ -217,7 +210,6 @@ public class PreferencesActivity extends AppCompatActivity {
                 FileLogger.log("CheckForUpdates", "Error fetching updates", e);
             }
 
-            // Process the result on the main thread
             String finalApiVersion = apiVersion;
             new Handler(Looper.getMainLooper()).post(() -> processVersionCheckResult(finalApiVersion));
         }).start();
@@ -292,7 +284,6 @@ public class PreferencesActivity extends AppCompatActivity {
                 startActivity(browserIntent);
             });
 
-            // Pass the version to download method
             String apiVersion = message.substring(message.lastIndexOf(" ") + 1);
             builder.setNeutralButton("Download Latest Version", (dialog, which) -> {
                 downloadLatestVersion(apiVersion);
@@ -358,42 +349,35 @@ public class PreferencesActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 FileLogger.log("PreferencesActivity", "Error loading preferences", e);
-                setDefaults();  // Fallback to default values if any error occurs
+                setDefaults();
             }
         } else {
-            setDefaults();  // Use default values if the file doesn't exist
+            setDefaults();
         }
     }
 
     private void setDefaults() {
-        // Set the saveToDirectory to the Android/media folder within external storage
         File mediaDir = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Media/");
 
-        // Create the media directory if it doesn't exist
         if (!mediaDir.exists()) {
-            boolean dirCreated = mediaDir.mkdirs();  // Create the directory if it doesn't exist
+            boolean dirCreated = mediaDir.mkdirs();
             if (!dirCreated) {
                 FileLogger.log("PreferencesActivity", "Failed to create media directory");
                 return;
             }
         }
 
-        // Get the full path to the media folder
         String saveToDirectory = mediaDir.getAbsolutePath();
 
-        // Set defaults for device name and saveToDirectory
         originalPreferences.put("device_name", "Android Device");
         originalPreferences.put("saveToDirectory", saveToDirectory);
 
-        // Update UI fields with defaults
         deviceNameInput.setText("Android Device");
         saveToDirectoryInput.setText(saveToDirectory);
     }
 
-    // Method to read JSON from internal storage
     private String readJsonFromFile() {
-        // Get the external file path for the config directory
-        File folder = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config"); // External storage path
+        File folder = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config");
         File file = new File(folder, CONFIG_FILE_NAME);
 
         if (file.exists()) {
@@ -415,32 +399,28 @@ public class PreferencesActivity extends AppCompatActivity {
     }
 
     private void resetDeviceName() {
-        deviceNameInput.setText(android.os.Build.MODEL);  // Reset device name to the device's model name
+        deviceNameInput.setText(android.os.Build.MODEL);
     }
 
     private void resetSavePath() {
         File mediaDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DataDash");
 
-        // Create the media directory if it doesn't exist
         if (!mediaDir.exists()) {
-            boolean dirCreated = mediaDir.mkdirs();  // Create the directory if it doesn't exist
+            boolean dirCreated = mediaDir.mkdirs();
             if (!dirCreated) {
                 FileLogger.log("MainActivity", "Failed to create media directory");
                 return;
             }
         }
-        // Get the full path to the media folder
         String saveToDirectory = mediaDir.getAbsolutePath();
 
-        // Remove the "/storage/emulated/0" prefix if it exists
         if (saveToDirectory.startsWith("/storage/emulated/0")) {
-            saveToDirectory = saveToDirectory.replace("/storage/emulated/0", ""); // Remove the prefix
+            saveToDirectory = saveToDirectory.replace("/storage/emulated/0", "");
         }
-        saveToDirectoryInput.setText(saveToDirectory);  // Reset save path to default
+        saveToDirectoryInput.setText(saveToDirectory);
     }
 
     private void pickDirectory() {
-        // Launch a directory picker
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         directoryPickerLauncher.launch(intent);
     }
@@ -464,7 +444,6 @@ public class PreferencesActivity extends AppCompatActivity {
                                 }
                             }
 
-                            // Give a warning if the selected directory is within the "Download" folder and may cause issues
                             if (pickedDir.contains("Download")) {
                                 Toast.makeText(this, "Warning: Selected directory is within the Download folder", Toast.LENGTH_SHORT).show();
                             }
@@ -551,7 +530,6 @@ public class PreferencesActivity extends AppCompatActivity {
 
             if (updated) {
                 saveJsonToFile(existingConfig.toString());
-                // Update original preferences
                 originalPreferences.put("device_name", deviceName);
                 originalPreferences.put("saveToDirectory", saveToDirectory);
                 originalPreferences.put("encryption", encryption);
@@ -563,10 +541,9 @@ public class PreferencesActivity extends AppCompatActivity {
         }
     }
 
-    // Method to save the modified JSON to internal storage
     private void saveJsonToFile(String jsonString) {
         try {
-            File folder = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config");  // External storage path
+            File folder = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config");
             if (!folder.exists()) {
                 boolean folderCreated = folder.mkdirs();
                 FileLogger.log("PreferencesActivity", "Config folder created: " + folder.getAbsolutePath());
