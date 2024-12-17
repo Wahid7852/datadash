@@ -37,6 +37,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import androidx.appcompat.app.AlertDialog;
 
+import android.app.DownloadManager;
+import android.content.Context;
+
 
 
 public class PreferencesActivity extends AppCompatActivity {
@@ -89,7 +92,7 @@ public class PreferencesActivity extends AppCompatActivity {
         saveToDirectoryPickerButton.setOnClickListener(v -> pickDirectory());
         resetSavePathButton.setOnClickListener(v -> resetSavePath());
         submitButton.setOnClickListener(v -> submitPreferences());
-        mainMenuButton.setOnClickListener(v -> goToMainMenu());
+        mainMenuButton.setOnClickListener(v -> toastdis());
         imageButton.setOnClickListener(v -> openHelpMenu());
         btnCredits.setOnClickListener(v -> {
             Intent intent = new Intent(PreferencesActivity.this, CreditsActivity.class);
@@ -181,7 +184,7 @@ public class PreferencesActivity extends AppCompatActivity {
                 } else if (comparison > 0) {
                     showMessageDialog("Development Version",
                             "Your app version " + appVersion + " is newer than the released version " + apiVersion,
-                            false);
+                            true);
                 } else {
                     showMessageDialog("Up to Date",
                             "Your app is running the latest version " + appVersion,
@@ -225,23 +228,51 @@ public class PreferencesActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(title)
                 .setMessage(message)
-                .setPositiveButton("Close", (dialog, which) -> {
-                    dialog.dismiss();
-                });
+                .setPositiveButton("Close", (dialog, which) -> dialog.dismiss());
 
         if (showDownloadsButton) {
             builder.setNegativeButton("Open Downloads Page", (dialog, which) -> {
-                // Open the downloads page in a browser
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://datadashshare.vercel.app/download"));
                 startActivity(browserIntent);
             });
+
+            // Pass the version to download method
+            String apiVersion = message.substring(message.lastIndexOf(" ") + 1);
+            builder.setNeutralButton("Download Latest Version", (dialog, which) -> {
+                downloadLatestVersion(apiVersion);
+            });
         }
 
-        // Show the dialog
         AlertDialog dialog = builder.create();
         dialog.show();
     }
 
+    private void downloadLatestVersion(String version) {
+        try {
+            String downloadUrl = "https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(android).apk";
+            String fileName = "DataDash_v" + version + ".apk";
+
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
+            request.setTitle("DataDash Update v" + version);
+            request.setDescription("Downloading version " + version);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+
+            request.setDestinationInExternalPublicDir(
+                    Environment.DIRECTORY_DOWNLOADS,
+                    "DataDash/" + fileName
+            );
+
+            DownloadManager downloadManager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (downloadManager != null) {
+                long downloadId = downloadManager.enqueue(request);
+                Toast.makeText(this, "Downloading DataDash v" + version, Toast.LENGTH_LONG).show();
+                FileLogger.log("PreferencesActivity", "Started download of version " + version);
+            }
+        } catch (Exception e) {
+            FileLogger.log("PreferencesActivity", "Error starting download", e);
+            Toast.makeText(this, "Error starting download: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
 
     private void loadPreferences() {
         String jsonString = readJsonFromFile();
