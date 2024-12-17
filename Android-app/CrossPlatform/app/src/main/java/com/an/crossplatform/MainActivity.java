@@ -22,6 +22,7 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -38,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_STORAGE_PERMISSION = 1;
     private static final int REQUEST_CODE_MANAGE_STORAGE_PERMISSION = 2;
     private static boolean isFirstLaunch = true;
+    private static final String CONFIG_FILE_NAME = "config.json";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -342,45 +344,120 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkForUpdates() {
-        if (!isFirstLaunch) {
+        String channel = loadchannel();
+        if (!isFirstLaunch || !shouldAutoCheck()) {
+            isFirstLaunch = false;
             return;
         }
 
-        if (!shouldAutoCheck()) {
-            FileLogger.log("MainActivity", "Auto-check updates is disabled");
+        if (!isNetworkAvailable()) {
+            FileLogger.log("CheckForUpdates", "No network connection available");
             isFirstLaunch = false;
             return;
         }
 
         new Thread(() -> {
             String apiVersion = null;
-            try {
-                URL url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
+            HttpURLConnection connection = null;
+            int retryCount = 0;
+            int maxRetries = 2;
 
-                int responseCode = connection.getResponseCode();
-                if (responseCode == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
+            while (retryCount <= maxRetries && apiVersion == null) {
+                try {
+                    URL url;
+                    if (channel.equals("beta")) {
+                        url = new URL("https://datadashshare.vercel.app/api/platformNumberbeta?platform=android");
+                    } else {
+                        url = new URL("https://datadashshare.vercel.app/api/platformNumber?platform=android");
                     }
-                    reader.close();
 
-                    JSONObject jsonObject = new JSONObject(response.toString());
-                    apiVersion = jsonObject.getString("value");
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setConnectTimeout(5000);
+                    connection.setReadTimeout(5000);
+
+                    int responseCode = connection.getResponseCode();
+                    if (responseCode == 200) {
+                        try (BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(connection.getInputStream()))) {
+                            StringBuilder response = new StringBuilder();
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                response.append(line);
+                            }
+                            JSONObject jsonObject = new JSONObject(response.toString());
+                            apiVersion = jsonObject.getString("value");
+                        }
+                    }
+                } catch (Exception e) {
+                    FileLogger.log("CheckForUpdates",
+                            "Attempt " + (retryCount + 1) + " failed: " + e.getMessage());
+                    retryCount++;
+
+                    if (retryCount <= maxRetries) {
+                        try {
+                            Thread.sleep(1000 * retryCount); // Exponential backoff
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
                 }
-            } catch (Exception e) {
-                FileLogger.log("CheckForUpdates", "Error fetching updates", e);
             }
 
             isFirstLaunch = false;
             String finalApiVersion = apiVersion;
-            new Handler(Looper.getMainLooper()).post(() -> processVersionCheckResult(finalApiVersion));
+            new Handler(Looper.getMainLooper()).post(() ->
+                    processVersionCheckResult(finalApiVersion));
         }).start();
+    }
+
+    private String loadchannel() {
+        String jsonString = readJsonFromFile();
+        try {
+            if (jsonString != null) {
+                JSONObject configJson = new JSONObject(jsonString);
+                return configJson.optString("update_channel", "stable");
+            }
+        } catch (Exception e) {
+            FileLogger.log("PreferencesActivity", "Error loading update channel", e);
+        }
+        return "stable";
+    }
+
+    private String readJsonFromFile() {
+        File folder = new File(Environment.getExternalStorageDirectory(), "Android/media/" + getPackageName() + "/Config");
+        File file = new File(folder, CONFIG_FILE_NAME);
+
+        if (file.exists()) {
+            StringBuilder jsonString = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    jsonString.append(line);
+                }
+                FileLogger.log("PreferencesActivity", "Read JSON from file: " + jsonString.toString());
+                return jsonString.toString();
+            } catch (Exception e) {
+                FileLogger.log("PreferencesActivity", "Error reading JSON from file", e);
+            }
+        } else {
+            FileLogger.log("PreferencesActivity", "File does not exist: " + file.getAbsolutePath());
+        }
+        return null;
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+
+        Network activeNetwork = cm.getActiveNetwork();
+        if (activeNetwork == null) return false;
+
+        NetworkCapabilities capabilities = cm.getNetworkCapabilities(activeNetwork);
+        return capabilities != null &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 
     private void processVersionCheckResult(String apiVersion) {
