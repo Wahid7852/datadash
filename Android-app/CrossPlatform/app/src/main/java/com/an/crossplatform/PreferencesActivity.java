@@ -612,13 +612,15 @@ public class PreferencesActivity extends AppCompatActivity {
 
     private void goToMainMenu() {
         Intent mainIntent = new Intent(PreferencesActivity.this, MainActivity.class);
+        mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(mainIntent);
         finish();
     }
 
-    private void toastdis(){
+    private void toastdis() {
         Toast.makeText(this, "Settings Changes Discarded", Toast.LENGTH_SHORT).show();
         Intent mainIntent = new Intent(PreferencesActivity.this, MainActivity.class);
+        mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(mainIntent);
         finish();
     }
