@@ -309,7 +309,7 @@ public class PreferencesActivity extends AppCompatActivity {
 
             String apiVersion = message.substring(message.lastIndexOf(" ") + 1);
             builder.setNeutralButton("Download Latest Version", (dialog, which) -> {
-                downloadLatestVersion(apiVersion);
+                downloadLatestVersion(apiVersion, channel);
             });
         }
 
@@ -317,13 +317,23 @@ public class PreferencesActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void downloadLatestVersion(String version) {
+    private void downloadLatestVersion(String version, String channel) {
         try {
-            String downloadUrl = "https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(android).apk";
-            String fileName = "DataDash_v" + version + ".apk";
+            String downloadUrl;
+            String fileNameSuffix;
+
+            if (channel.equals("beta")) {
+                downloadUrl = "https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(android).apk";
+                fileNameSuffix = "_beta";
+            } else {
+                downloadUrl = "https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(android).apk";
+                fileNameSuffix = "";
+            }
+
+            String fileName = "DataDash_v" + version + fileNameSuffix + ".apk";
 
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
-            request.setTitle("DataDash Update v" + version);
+            request.setTitle("DataDash Update v" + version + (channel.equals("beta") ? " Beta" : ""));
             request.setDescription("Downloading version " + version);
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
 
@@ -335,8 +345,8 @@ public class PreferencesActivity extends AppCompatActivity {
             DownloadManager downloadManager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (downloadManager != null) {
                 long downloadId = downloadManager.enqueue(request);
-                Toast.makeText(this, "Downloading DataDash v" + version, Toast.LENGTH_LONG).show();
-                FileLogger.log("PreferencesActivity", "Started download of version " + version);
+                Toast.makeText(this, "Downloading DataDash v" + version + (channel.equals("beta") ? " Beta" : ""), Toast.LENGTH_LONG).show();
+                FileLogger.log("PreferencesActivity", "Started download of version " + version + " (" + channel + ")");
             }
         } catch (Exception e) {
             FileLogger.log("PreferencesActivity", "Error starting download", e);
