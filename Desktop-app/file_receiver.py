@@ -284,6 +284,12 @@ class ReceiveApp(QWidget):
         self.file_receiver.client_socket.close()
         self.file_receiver.receiver_worker.terminate()
 
+    def on_config_updated(self, config):
+        """Handle configuration updates."""
+        logger.debug(f"Receiver config updated: {config}")
+        # Update any UI elements or settings based on the new config if needed
+        pass
+
 if __name__ == '__main__':
     import sys
     app = QApplication([])
