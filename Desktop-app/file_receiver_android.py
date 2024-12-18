@@ -166,7 +166,7 @@ class ReceiveWorkerJava(QThread):
                             self.destination_folder = self.create_folder_structure(self.metadata)
                         else:
                             # For single files, use default directory
-                            self.destination_folder = get_config()["save_to_directory"]
+                            self.destination_folder = self.config_manager.get_config()["save_to_directory"]
                         continue
 
                     # Determine file path based on transfer type
@@ -238,7 +238,7 @@ class ReceiveWorkerJava(QThread):
 
     def create_folder_structure(self, metadata):
         """Create folder structure based on metadata."""
-        default_dir = get_config()["save_to_directory"]
+        default_dir = self.config_manager.get_config()["save_to_directory"]
         
         if not default_dir:
             raise ValueError("No save_to_directory configured")
