@@ -9,10 +9,9 @@ from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication, QHBoxLayout
 )
 from PyQt6.QtGui import QScreen, QMovie, QKeySequence, QKeyEvent
-from constant import ConfigManager  # Updated import
-from ports import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
+from constant import ConfigManager
+from portsss import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
 from loges import logger
-from crypt_handler import decrypt_file, Decryptor
 from time import sleep
 import json
 from file_receiver_python import ReceiveAppP
@@ -21,8 +20,8 @@ from file_receiver_swift import ReceiveAppPSwift
 
 
 class FileReceiver(QThread):
-    show_receive_app_p_signal = pyqtSignal(str)  # Modify signal to accept OS info
-    show_receive_app_p_signal_java = pyqtSignal()  # Signal to show the ReceiveAppP window for Java devices
+    show_receive_app_p_signal = pyqtSignal(str)
+    show_receive_app_p_signal_java = pyqtSignal()
     show_receive_app_p_signal_swift = pyqtSignal()
 
     def __init__(self):
@@ -39,7 +38,6 @@ class FileReceiver(QThread):
         self.config_manager.start()
 
     def run(self):
-        # Clear all connections on the about to be used ports 
         try:
             if self.server_socket:
                 self.server_socket.close()
@@ -53,25 +51,23 @@ class FileReceiver(QThread):
             pass
 
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow immediate reuse of the address
-        self.server_socket.bind(('0.0.0.0', self.config_manager.RECEIVER_JSON))
-        self.server_socket.listen(5)  # Listen for multiple connections
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind(('0.0.0.0', RECEIVER_JSON))
+        self.server_socket.listen(5)
 
         while True:
             self.client_socket, addr = self.server_socket.accept()
             self.store_client_ip()
             self.handle_device_type()
-            self.client_socket.close()  # Close the connection after receiving files
+            self.client_socket.close()
 
     def store_client_ip(self):
-        """Extract and store the IP address of the connected client."""
         self.client_ip = self.client_socket.getpeername()[0]
         logger.debug(f"Client IP address stored: {self.client_ip}")
         return self.client_ip
 
     def handle_device_type(self):
-        """Handles the device type negotiation and file receiving process."""
-        # Send device information as JSON
+
         device_data = {
             "device_type": "python",
             "os": platform.system()
@@ -79,20 +75,18 @@ class FileReceiver(QThread):
         device_data_json = json.dumps(device_data)
         self.client_socket.send(struct.pack('<Q', len(device_data_json)))
         self.client_socket.send(device_data_json.encode())
-        # print logger info of client_socket ip address
         logger.debug(f"Connected to {self.client_socket.getpeername()}")
 
-        # Receive and process the device information from the sender
         device_json_size = struct.unpack('<Q', self.client_socket.recv(8))[0]
         device_json = self.client_socket.recv(device_json_size).decode()
         self.device_info = json.loads(device_json)
         sender_device_type = self.device_info.get("device_type", "unknown")
-        sender_os = self.device_info.get("os", "unknown")  # Extract sender's OS
+        sender_os = self.device_info.get("os", "unknown")
         if sender_device_type == "python":
             logger.debug("Connected to a Python device.")
-            self.show_receive_app_p_signal.emit(sender_os)  # Pass OS info
-            sleep(1)  # Wait for the signal to be processed
-            self.cleanup_sockets() # Clean up before proceeding
+            self.show_receive_app_p_signal.emit(sender_os)
+            sleep(1)
+            self.cleanup_sockets()
         elif sender_device_type == "java":
             logger.debug("Connected to a Java device.")
             self.show_receive_app_p_signal_java.emit()
@@ -217,7 +211,7 @@ class ReceiveApp(QWidget):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('', self.config_manager.BROADCAST_PORT))
+            s.bind(('', BROADCAST_PORT))
 
             while True:
                 if self.file_receiver.broadcasting:
@@ -227,7 +221,7 @@ class ReceiveApp(QWidget):
                         response = f'RECEIVER:{self.config_manager.get_config()["device_name"]}'
                         # Create a new socket to send the response on LISTEN_PORT
                         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as response_socket:
-                            response_socket.sendto(response.encode(), (address[0], self.config_manager.LISTEN_PORT))
+                            response_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
                 sleep(1)  # Avoid busy-waiting
 
     def connection_successful(self):

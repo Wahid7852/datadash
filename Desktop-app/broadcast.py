@@ -12,7 +12,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF, QTimer, QSize
 from PyQt6.QtGui import QScreen, QColor, QLinearGradient, QPainter, QPen, QFont, QIcon, QKeySequence, QKeyEvent
 from loges import logger
 from constant import ConfigManager  # Updated import
-from ports import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
+from portsss import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
 from file_sender import SendApp
 from file_sender_java import SendAppJava
 from file_sender_swift import SendAppSwift
@@ -139,11 +139,11 @@ class BroadcastWorker(QThread):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             
             # Bind to LISTEN_PORT to receive responses
-            s.bind(('', self.config_manager.LISTEN_PORT))
-            logger.info("Sending discover packet to %s:%d", broadcast_address, self.config_manager.BROADCAST_PORT)
+            s.bind(('',LISTEN_PORT))
+            logger.info("Sending discover packet to %s:%d", broadcast_address,BROADCAST_PORT)
             
             # Send discovery packet
-            s.sendto(b'DISCOVER', (broadcast_address, self.config_manager.BROADCAST_PORT))
+            s.sendto(b'DISCOVER', (broadcast_address,BROADCAST_PORT))
             
             # Listen for responses with timeout
             s.settimeout(2)
@@ -173,7 +173,7 @@ class BroadcastWorker(QThread):
             # Create a new socket for connection
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.client_socket.connect((device_ip, self.config_manager.RECEIVER_JSON))
+            self.client_socket.connect((device_ip,RECEIVER_JSON))
 
             device_data = {
                 'device_type': 'python',

@@ -11,11 +11,8 @@ class ConfigManager(QThread):
     def __init__(self):
         super().__init__()
         self.config_file_name = ".config.json"
-        self.current_version = "4.1.2"
+        self.current_version = "4.1.4"
         self.config_file = self.get_config_file_path()
-        self.BROADCAST_PORT = 49185
-        self.LISTEN_PORT = 49186
-        self.RECEIVER_JSON = 54314
 
     def get_config_file_path(self):
         if platform.system() == 'Windows':
