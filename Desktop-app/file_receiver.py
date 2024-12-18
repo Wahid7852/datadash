@@ -9,7 +9,8 @@ from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication,QHBoxLayout
 )
 from PyQt6.QtGui import QScreen, QMovie, QKeySequence, QKeyEvent
-from constant import BROADCAST_PORT, LISTEN_PORT, get_config, logger, RECEIVER_JSON
+from constant import BROADCAST_PORT, LISTEN_PORT, get_config, RECEIVER_JSON
+from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 from time import sleep
 import json

@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF, QTimer, QSize
 from PyQt6.QtGui import QScreen, QColor, QLinearGradient, QPainter, QPen, QFont, QIcon, QKeySequence,QKeyEvent
-from constant import BROADCAST_PORT, LISTEN_PORT, logger, get_config, RECEIVER_JSON
+from loges import logger
+from constant import BROADCAST_PORT, LISTEN_PORT, get_config, RECEIVER_JSON
 from file_sender import SendApp
 from file_sender_java import SendAppJava
 from file_sender_swift import SendAppSwift

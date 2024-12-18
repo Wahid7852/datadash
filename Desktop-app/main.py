@@ -7,10 +7,11 @@ import os
 from file_receiver import ReceiveApp
 from broadcast import Broadcast
 from preferences import PreferencesApp
-from constant import logger, get_config
+from constant import get_config
 import platform
 import requests
 import ctypes
+from loges import logger
 
 class VersionCheck(QThread):
     update_available = pyqtSignal()

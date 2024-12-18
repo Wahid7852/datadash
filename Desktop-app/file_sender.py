@@ -12,7 +12,8 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt
 import os
 import socket
 import struct
-from constant import get_config, logger
+from constant import get_config
+from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
 

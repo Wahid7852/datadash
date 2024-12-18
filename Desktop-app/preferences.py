@@ -5,7 +5,8 @@ from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence, QDeskto
 from PyQt6.QtCore import Qt, QUrl
 import sys
 import platform
-from constant import get_config, write_config, get_default_path, logger
+from constant import get_config, write_config, get_default_path
+from loges import logger
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 from credits_dialog import CreditsDialog
 import requests

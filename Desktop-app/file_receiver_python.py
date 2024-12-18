@@ -8,7 +8,8 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QMetaObject,QTimer
 from PyQt6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication,QPushButton,QHBoxLayout
 from PyQt6.QtGui import QScreen,QMovie,QFont,QKeyEvent,QKeySequence
-from constant import get_config, logger
+from constant import get_config
+from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 import time
 import shutil
