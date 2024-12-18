@@ -6,7 +6,7 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QMetaObject,QTimer
 from PyQt6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication,QPushButton,QHBoxLayout
 from PyQt6.QtGui import QScreen,QMovie,QFont,QKeySequence,QKeyEvent
-from constant import get_config
+from constant import ConfigManager
 from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 import subprocess
@@ -32,6 +32,8 @@ class ReceiveWorkerSwift(QThread):
         self.destination_folder = None
         self.store_client_ip = client_ip
         self.base_folder_name = ''
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
         logger.debug(f"Client IP address stored: {self.store_client_ip}")
 
     def initialize_connection(self):
@@ -162,7 +164,7 @@ class ReceiveWorkerSwift(QThread):
                             self.destination_folder = self.create_folder_structure(self.metadata)
                         else:
                             # For single files, use default directory
-                            self.destination_folder = get_config()["save_to_directory"]
+                            self.destination_folder = self.config_manager.get_config()["save_to_directory"]
                         continue
 
                     # Determine file path based on transfer type
@@ -234,7 +236,7 @@ class ReceiveWorkerSwift(QThread):
 
     def create_folder_structure(self, metadata):
         """Create folder structure based on metadata."""
-        default_dir = get_config()["save_to_directory"]
+        default_dir = self.config_manager.get_config()["save_to_directory"]
         
         if not default_dir:
             raise ValueError("No save_to_directory configured")
@@ -301,7 +303,7 @@ class ReceiveWorkerSwift(QThread):
 
     def get_file_path(self, file_name):
         """Get the file path for saving the received file."""
-        default_dir = get_config()["save_to_directory"]
+        default_dir = self.config_manager.get_config()["save_to_directory"]
         if not default_dir:
             raise NotImplementedError("Unsupported OS")
         return os.path.join(default_dir, file_name)
@@ -538,7 +540,7 @@ class ReceiveAppPSwift(QWidget):
             self.decryptor.show()
 
     def open_receiving_directory(self):
-        receiving_dir = get_config().get("save_to_directory", "")
+        receiving_dir = self.config_manager.get_config().get("save_to_directory", "")
         
         if receiving_dir:
             try:
