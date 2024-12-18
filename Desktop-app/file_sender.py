@@ -24,6 +24,7 @@ class FileSender(QThread):
     progress_update = pyqtSignal(int)
     file_send_completed = pyqtSignal(str)
     transfer_finished = pyqtSignal()
+    file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
 
     password = None
 
@@ -33,7 +34,18 @@ class FileSender(QThread):
         self.file_paths = file_paths
         self.password = password
         self.receiver_data = receiver_data
+        self.total_files = self.count_total_files()
+        self.files_sent = 0
 
+    def count_total_files(self):
+        total = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    total += len(files)
+            else:
+                total += 1
+        return total
 
     def initialize_connection(self):
         # Ensure previous socket is closed before re-binding
@@ -89,7 +101,7 @@ class FileSender(QThread):
             else:
                 if not self.metadata_created:
                     metadata_file_path = self.create_metadata(file_paths=self.file_paths)
-                    self.send_file(metadata_file_path)
+                    self.send_file(metadata_file_path, count=False)
                 self.send_file(file_path, encrypted_transfer=self.encryption_flag)
         
         if self.metadata_created and metadata_file_path:
@@ -173,7 +185,7 @@ class FileSender(QThread):
         if not self.metadata_created:
             metadata_file_path = self.create_metadata(folder_path=folder_path)
             metadata = json.loads(open(metadata_file_path).read())
-            self.send_file(metadata_file_path)
+            self.send_file(metadata_file_path, count=False)
 
         for file_info in metadata:
             relative_file_path = file_info['path']
@@ -186,7 +198,7 @@ class FileSender(QThread):
 
         os.remove(metadata_file_path)
 
-    def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False):
+    def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False, count=True):
         logger.debug("Sending file: %s", file_path)
 
         if encrypted_transfer:
@@ -216,6 +228,11 @@ class FileSender(QThread):
                 self.client_skt.sendall(data)
                 sent_size += len(data)
                 self.progress_update.emit(sent_size * 100 // file_size)
+
+        if count:
+            self.files_sent += 1
+            files_pending = self.total_files - self.files_sent
+            self.file_count_update.emit(self.total_files, self.files_sent, files_pending)
 
         if encrypted_transfer:
             os.remove(file_path)
@@ -351,6 +368,11 @@ class SendApp(QWidget):
         self.status_label = QLabel("")
         self.style_label(self.status_label)
         content_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # Add label for file counts
+        self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
+        self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
+        content_layout.addWidget(self.file_counts_label)
 
         # Keep them disabled until the file transfer is completed
         self.close_button = self.create_styled_button_close('Close')  # Apply styling here
@@ -576,6 +598,7 @@ class SendApp(QWidget):
         self.file_sender.progress_update.connect(self.updateProgressBar)
         self.file_sender.file_send_completed.connect(self.fileSent)
         self.file_sender.transfer_finished.connect(self.onTransferFinished)
+        self.file_sender.file_count_update.connect(self.updateFileCounts)
         self.file_sender.start()
         #com.an.Datadash
 
@@ -584,6 +607,9 @@ class SendApp(QWidget):
 
     def fileSent(self, file_path):
         self.status_label.setText(f"File sent: {file_path}")
+
+    def updateFileCounts(self, total_files, files_sent, files_pending):
+        self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
 
     def onTransferFinished(self):
         self.close_button.setVisible(True)
@@ -617,4 +643,5 @@ if __name__ == '__main__':
     send_app = SendApp("127.0.0.1", "Test Device", None)
     send_app.show()
     sys.exit(app.exec())
+    #com.an.Datadash
     #com.an.Datadash
