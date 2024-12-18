@@ -1,3 +1,4 @@
+from constant import ConfigManager
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QApplication,
                              QLabel, QFrame, QGraphicsDropShadowEffect, QMessageBox)
 from PyQt6.QtGui import QScreen, QFont, QColor, QIcon, QMovie
@@ -7,7 +8,6 @@ import os
 from file_receiver import ReceiveApp
 from broadcast import Broadcast
 from preferences import PreferencesApp
-from constant import ConfigManager  # Updated import
 import platform
 import requests
 import ctypes
@@ -19,6 +19,7 @@ class VersionCheck(QThread):
     def __init__(self):
         super().__init__()
         self.uga_version = None
+        self.config_manager = ConfigManager()
 
     def run(self):
         self.currentversion()
