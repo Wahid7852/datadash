@@ -5,10 +5,10 @@ import json
 import subprocess
 import platform
 from PyQt6 import QtCore
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QMetaObject,QTimer
-from PyQt6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication,QPushButton,QHBoxLayout
-from PyQt6.QtGui import QScreen,QMovie,QFont,QKeyEvent,QKeySequence
-from constant import get_config
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QMetaObject, QTimer
+from PyQt6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication, QPushButton, QHBoxLayout
+from PyQt6.QtGui import QScreen, QMovie, QFont, QKeyEvent, QKeySequence
+from constant import ConfigManager
 from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 import time
@@ -20,7 +20,7 @@ RECEIVER_DATA = 58000
 class ReceiveWorkerPython(QThread):
     progress_update = pyqtSignal(int)
     decrypt_signal = pyqtSignal(list)
-    close_connection_signal = pyqtSignal() 
+    close_connection_signal = pyqtSignal()
     receiving_started = pyqtSignal()
     transfer_finished = pyqtSignal()
     password = None
@@ -36,6 +36,8 @@ class ReceiveWorkerPython(QThread):
         self.store_client_ip = client_ip
         logger.debug(f"Client IP address stored: {self.store_client_ip}")
         self.close_connection_signal.connect(self.close_connection)
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
         #com.an.Datadash
 
     def initialize_connection(self):
@@ -48,9 +50,9 @@ class ReceiveWorkerPython(QThread):
                     self.server_skt.close()
                 except:
                     pass
-                
+
             self.server_skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            
+
             # Set socket options
             self.server_skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if platform.system() != 'Windows':
@@ -58,15 +60,15 @@ class ReceiveWorkerPython(QThread):
                     self.server_skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
                 except AttributeError:
                     logger.debug("SO_REUSEPORT not available on this platform")
-            
+
             # Configure timeout
             self.server_skt.settimeout(60)
-            
+
             # Bind and listen
             self.server_skt.bind(('', RECEIVER_DATA))
             self.server_skt.listen(1)
             logger.debug("Server initialized on port %d", RECEIVER_DATA)
-            
+
         except OSError as e:
             if e.errno == 48:  # Address already in use
                 logger.error("Port %d is in use, waiting to retry...", RECEIVER_DATA)
@@ -77,7 +79,6 @@ class ReceiveWorkerPython(QThread):
         except Exception as e:
             logger.error("Failed to initialize server: %s", str(e))
             raise
-
 
     def accept_connection(self):
         if self.client_skt:
@@ -100,12 +101,11 @@ class ReceiveWorkerPython(QThread):
             self.receive_files()
         else:
             logger.error("Failed to establish a connection.")
-        
+
         if self.client_skt:
             self.client_skt.close()
         if self.server_skt:
             self.server_skt.close()
-
 
     def receive_files(self):
         self.broadcasting = False  # Stop broadcasting
@@ -139,7 +139,7 @@ class ReceiveWorkerPython(QThread):
                 file_name_size_data = self.client_skt.recv(8)
                 file_name_size = struct.unpack('<Q', file_name_size_data)[0]
                 logger.debug("File name size received: %d", file_name_size)
-                
+
                 if file_name_size == 0:
                     logger.debug("End of transfer signal received.")
                     break  # End of transfer signal
@@ -167,7 +167,7 @@ class ReceiveWorkerPython(QThread):
                         self.destination_folder = self.create_folder_structure(self.metadata)
                     else:
                         ## If not, set the destination folder to the default directory
-                        self.destination_folder = get_config()["save_to_directory"]
+                        self.destination_folder = self.config_manager.get_config()["save_to_directory"]
                     logger.debug("Metadata processed. Destination folder set to: %s", self.destination_folder)
                 else:
                     # Check if file exists in the receiving directory
@@ -217,7 +217,6 @@ class ReceiveWorkerPython(QThread):
 
         logger.debug("File reception completed.")
 
-
     def _receive_data(self, socket, size):
         """Helper function to receive a specific amount of data."""
         received_data = b""
@@ -245,11 +244,12 @@ class ReceiveWorkerPython(QThread):
     def create_folder_structure(self, metadata):
         """Create folder structure based on metadata."""
         # Get the default directory from configuration
-        default_dir = get_config()["save_to_directory"]
-        
+        config = self.config_manager.get_config()
+        default_dir = config["save_to_directory"]
+
         if not default_dir:
             raise ValueError("No save_to_directory configured")
-        
+
         # Extract the base folder name from the last metadata entry
         top_level_folder = metadata[-1].get('base_folder_name', '')
         if not top_level_folder:
@@ -274,17 +274,17 @@ class ReceiveWorkerPython(QThread):
             # Skip any paths marked for deletion
             if file_info['path'] == '.delete':
                 continue
-            
+
             # Get the folder path from the file info
             folder_path = os.path.dirname(file_info['path'])
             if folder_path:
                 # Create the full folder path
                 full_folder_path = os.path.join(destination_folder, folder_path)
-                
+
                 # Ensure the folder is unique and not a duplicate
                 if full_folder_path not in created_folders:
                     full_folder_path = self._get_unique_folder_name(full_folder_path)
-                    
+
                     # Create the directory if it does not exist
                     if not os.path.exists(full_folder_path):
                         os.makedirs(full_folder_path)
@@ -297,7 +297,6 @@ class ReceiveWorkerPython(QThread):
 
         return destination_folder
     #com.an.Datadash
-
 
     def _get_unique_folder_name(self, folder_path):
         """Append a unique (i) to folder name if it already exists."""
@@ -318,11 +317,12 @@ class ReceiveWorkerPython(QThread):
 
     def get_file_path(self, file_name):
         """Get the file path for saving the received file."""
-        default_dir = get_config()["save_to_directory"]
+        config = self.config_manager.get_config()
+        default_dir = config.get("save_to_directory")
         if not default_dir:
             raise NotImplementedError("Unsupported OS")
         return os.path.join(default_dir, file_name)
-    
+
     def close_connection(self):
         """Safely close all network connections"""
         for sock in [self.client_skt, self.server_skt]:
@@ -336,7 +336,7 @@ class ReceiveWorkerPython(QThread):
                         sock.close()
                     except:
                         pass
-        
+
         self.client_skt = None
         self.server_skt = None
         logger.debug("All connections closed")
@@ -353,7 +353,6 @@ class ReceiveWorkerPython(QThread):
         except Exception as e:
             logger.error(f"Error during worker stop: {e}")
 
-
 class ReceiveAppP(QWidget):
     progress_update = pyqtSignal(int)
 
@@ -364,19 +363,18 @@ class ReceiveAppP(QWidget):
         self.initUI()
         self.setFixedSize(853, 480)
         #com.an.Datadash
-        
+
         self.current_text = self.displaytxt()  # The full text for the label
         self.displayed_text = ""  # Text that will appear with typewriter effect
         self.char_index = 0  # Keeps track of the character index for typewriter effect
         self.progress_bar.setVisible(False)  # Initially hidden
-        
+
         self.file_receiver = ReceiveWorkerPython(client_ip)
         self.file_receiver.progress_update.connect(self.updateProgressBar)
         self.file_receiver.decrypt_signal.connect(self.decryptor_init)
         self.file_receiver.receiving_started.connect(self.show_progress_bar)
         self.file_receiver.transfer_finished.connect(self.onTransferFinished)
-       
-        
+
         # Start the typewriter effect
         self.typewriter_timer = QTimer(self)
         self.typewriter_timer.timeout.connect(self.update_typewriter_effect)
@@ -482,7 +480,7 @@ class ReceiveAppP(QWidget):
             return 'Waiting to receive files from a macOS device'
         else:
             return 'Waiting to receive files from Desktop app'
-        
+
     def displaytxtreceive(self):
         if self.sender_os == 'Windows':
             return 'Receiving files from a Windows device'
@@ -547,7 +545,6 @@ class ReceiveAppP(QWidget):
         self.progress_bar.setVisible(True)
         self.label.setText(self.displaytxtreceive())
 
-    
     def update_typewriter_effect(self):
         """Updates the label text one character at a time."""
         if self.char_index < len(self.current_text):
@@ -568,7 +565,6 @@ class ReceiveAppP(QWidget):
         self.change_gif_to_success()  # Change GIF to success animation
         self.close_button.setVisible(True)
 
-
     def change_gif_to_success(self):
         self.receiving_movie.stop()
         self.loading_label.setMovie(self.success_movie)
@@ -582,31 +578,31 @@ class ReceiveAppP(QWidget):
             self.decryptor.show()
 
     def open_receiving_directory(self):
-        receiving_dir = get_config().get("save_to_directory", "")
-        
+        config = self.file_receiver.config_manager.get_config()
+        receiving_dir = config.get("save_to_directory", "")
+
         if receiving_dir:
             try:
                 current_os = platform.system()
-                
+
                 if current_os == 'Windows':
                     os.startfile(receiving_dir)
-                
+
                 elif current_os == 'Linux':
                     subprocess.Popen(["xdg-open", receiving_dir])
-                
+
                 elif current_os == 'Darwin':  # macOS
                     subprocess.Popen(["open", receiving_dir])
-                
+
                 else:
                     raise NotImplementedError(f"Unsupported OS: {current_os}")
-            
+
             except FileNotFoundError as fnfe:
                 logger.error("No file manager or terminal emulator found on Linux: %s", fnfe)
             except Exception as e:
                 logger.error("Failed to open directory: %s", str(e))
         else:
             logger.error("No receiving directory configured.")
-
 
     def show_error_message(self, title, message, detailed_text):
         QMessageBox.critical(self, title, message)
@@ -617,23 +613,23 @@ class ReceiveAppP(QWidget):
             # Stop the typewriter effect
             if hasattr(self, 'typewriter_timer'):
                 self.typewriter_timer.stop()
-                
+
             # Stop file receiver and cleanup
             if hasattr(self, 'file_receiver'):
                 self.file_receiver.stop()
                 self.file_receiver.close_connection()
-                
+
                 # Ensure thread is properly terminated
                 if not self.file_receiver.wait(3000):  # Wait up to 3 seconds
                     self.file_receiver.terminate()
                     self.file_receiver.wait()
-                    
+
             # Stop any running movies
             if hasattr(self, 'receiving_movie'):
                 self.receiving_movie.stop()
             if hasattr(self, 'success_movie'):
                 self.success_movie.stop()
-                
+
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
         finally:
@@ -645,6 +641,9 @@ class ReceiveAppP(QWidget):
             if hasattr(self, 'file_receiver'):
                 self.file_receiver.stop()
                 self.file_receiver.close_connection()
+            if hasattr(self, 'config_manager'):
+                self.config_manager.quit()
+                self.config_manager.wait()
         except:
             pass
 

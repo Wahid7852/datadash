@@ -4,7 +4,7 @@ from PyQt6.QtGui import QScreen, QFont, QColor, QIcon, QMovie
 from PyQt6.QtCore import Qt, QTimer, QSize, QThread, pyqtSignal
 import sys
 import os
-# from file_receiver import ReceiveApp
+from file_receiver import ReceiveApp
 from broadcast import Broadcast
 from preferences import PreferencesApp
 from constant import ConfigManager  # Updated import

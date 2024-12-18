@@ -7,7 +7,7 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QMetaObject,QTimer
 from PyQt6.QtWidgets import QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication,QPushButton,QHBoxLayout
 from PyQt6.QtGui import QScreen,QMovie,QFont,QKeySequence,QKeyEvent
-from constant import get_config
+from constant import ConfigManager
 from crypt_handler import decrypt_file, Decryptor
 import subprocess
 import platform
@@ -33,6 +33,8 @@ class ReceiveWorkerJava(QThread):
         self.destination_folder = None
         self.store_client_ip = client_ip
         self.base_folder_name = ''
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
         logger.debug(f"Client IP address stored: {self.store_client_ip}")
 
     def initialize_connection(self):
@@ -303,7 +305,8 @@ class ReceiveWorkerJava(QThread):
 
     def get_file_path(self, file_name):
         """Get the file path for saving the received file."""
-        default_dir = get_config()["save_to_directory"]
+        config = self.config_manager.get_config()
+        default_dir = config.get("save_to_directory")
         if not default_dir:
             raise NotImplementedError("Unsupported OS")
         return os.path.join(default_dir, file_name)
@@ -532,7 +535,8 @@ class ReceiveAppPJava(QWidget):
             self.decryptor.show()
 
     def open_receiving_directory(self):
-        receiving_dir = get_config().get("save_to_directory", "")
+        config = self.config_manager.get_config()
+        receiving_dir = config.get("save_to_directory", "")
         
         if receiving_dir:
             try:
@@ -597,6 +601,9 @@ class ReceiveAppPJava(QWidget):
     def __del__(self):
         """Ensure cleanup on object destruction"""
         try:
+            if hasattr(self, 'config_manager'):
+                self.config_manager.quit()
+                self.config_manager.wait()
             if hasattr(self, 'file_receiver'):
                 self.file_receiver.stop()
                 self.file_receiver.close_connection()
