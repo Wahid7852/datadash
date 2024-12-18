@@ -6,6 +6,7 @@ from loges import logger
 
 class ConfigManager(QThread):
     config_updated = pyqtSignal(dict)
+    config_ready = pyqtSignal()
     log_message = pyqtSignal(str)
     
     def __init__(self):
@@ -104,3 +105,4 @@ class ConfigManager(QThread):
             else:
                 self.log_message.emit(f"Loaded configuration: {config_data}")
                 self.config_updated.emit(config_data)
+        self.config_ready.emit()

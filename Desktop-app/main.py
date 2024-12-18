@@ -93,9 +93,13 @@ class MainApp(QWidget):
         self.config_manager = ConfigManager()
         self.config_manager.config_updated.connect(self.on_config_updated)
         self.config_manager.log_message.connect(logger.info)
+        self.config_manager.config_ready.connect(self.on_config_ready)
         self.config_manager.start()
-        self.initUI(skip_version_check)
-        self.setFixedSize(853, 480) 
+        self.skip_version_check = skip_version_check
+
+    def on_config_ready(self):
+        self.initUI(self.skip_version_check)
+        self.setFixedSize(853, 480)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def on_config_updated(self, config):
