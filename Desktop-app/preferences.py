@@ -5,7 +5,7 @@ from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence, QDeskto
 from PyQt6.QtCore import Qt, QUrl
 import sys
 import platform
-from constant import get_config, write_config, get_default_path
+from constant import ConfigManager  # Updated import - remove get_config, write_config, get_default_path
 from loges import logger
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 from credits_dialog import CreditsDialog
@@ -18,9 +18,16 @@ from subprocess import run
 class PreferencesApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.config_updated.connect(self.on_config_updated)
+        self.config_manager.log_message.connect(logger.info)
+        self.config_manager.start()
         self.original_preferences = {}
         self.initUI()
         self.setFixedSize(525, 600)  # Make the window smaller
+
+    def on_config_updated(self, config):
+        self.current_config = config
 
     def initUI(self):
         self.setWindowTitle('Settings')
@@ -406,14 +413,14 @@ class PreferencesApp(QWidget):
             self.save_to_path_input.setText(directory)
 
     def resetSavePath(self):
-        self.save_to_path_input.setText(get_default_path())
+        self.save_to_path_input.setText(self.config_manager.get_default_path())
 
     def displayversion(self):
-        config = get_config()
+        config = self.config_manager.get_config()
         self.uga_version = config["version"]
 
     def loadPreferences(self):
-        config = get_config()
+        config = self.config_manager.get_config()
         self.version = config["version"]
         self.device_name_input.setText(config["device_name"])
         self.save_to_path_input.setText(config["save_to_directory"])
@@ -491,7 +498,7 @@ class PreferencesApp(QWidget):
 
         # Create a dictionary of only the changed values
         changed_preferences = {}
-        current_config = get_config()  # Get current config
+        current_config = self.config_manager.get_config()  # Get current config
 
         # Compare each field with original preferences and only include changed ones
         if device_name != self.original_preferences["device_name"]:
@@ -513,7 +520,7 @@ class PreferencesApp(QWidget):
         if changed_preferences:
             # Update only changed fields in current config
             current_config.update(changed_preferences)
-            write_config(current_config)
+            self.config_manager.write_config(current_config)
             # Update original preferences with new values
             self.original_preferences.update(changed_preferences)
 
@@ -892,7 +899,7 @@ class PreferencesApp(QWidget):
         return (v1_parts > v2_parts) - (v1_parts < v2_parts)
     
     def get_platform_link(self):
-        channel = get_config()["update_channel"]
+        channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Checking for updates in channel: {channel}")
         if platform.system() == 'Windows':
                 platform_name = 'windows'
@@ -917,7 +924,7 @@ class PreferencesApp(QWidget):
         return url
     
     def get_update_download(self):
-        channel = get_config()["update_channel"]
+        channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Checking for updates in channel: {channel}")
         # Determine platform OS and download path
         if platform.system() == 'Windows':
@@ -1221,15 +1228,15 @@ class PreferencesApp(QWidget):
         
     def update_channel_preference(self, index):
         channel = "stable" if index == 0 else "beta"
-        config = get_config()
+        config = self.config_manager.get_config()
         if config["update_channel"] != channel:
             config["update_channel"] = channel
-            write_config(config)
+            self.config_manager.write_config(config)
             self.original_preferences["update_channel"] = channel
             logger.info(f"Update channel changed to: {channel}")
 
     def download_page(self):
-        channel = get_config()["update_channel"]
+        channel = self.config_manager.get_config()["update_channel"]
         if channel == "beta":
             QDesktopServices.openUrl(QUrl("https://datadashshare.vercel.app/beta"))
             logger.info("Opened beta page")

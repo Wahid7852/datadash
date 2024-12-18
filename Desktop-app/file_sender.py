@@ -12,7 +12,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt
 import os
 import socket
 import struct
-from constant import get_config
+from constant import ConfigManager  # Updated import
 from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
@@ -30,6 +30,8 @@ class FileSender(QThread):
 
     def __init__(self, ip_address, file_paths, password=None, receiver_data=None):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
         self.ip_address = ip_address
         self.file_paths = file_paths
         self.password = password
@@ -93,7 +95,7 @@ class FileSender(QThread):
         if not self.initialize_connection():
             return
         
-        self.encryption_flag = get_config()["encryption"]
+        self.encryption_flag = self.config_manager.get_config()["encryption"]
 
         for file_path in self.file_paths:
             if os.path.isdir(file_path):
@@ -257,6 +259,10 @@ class SendApp(QWidget):
 
     def __init__(self, ip_address, device_name, receiver_data):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.config_updated.connect(self.on_config_updated)
+        self.config_manager.log_message.connect(logger.info)
+        self.config_manager.start()
         self.ip_address = ip_address
         self.device_name = device_name
         self.receiver_data = receiver_data
@@ -264,9 +270,12 @@ class SendApp(QWidget):
         self.initUI()
         self.progress_bar.setVisible(False)
 
+    def on_config_updated(self, config):
+        self.current_config = config
+
     def initUI(self):
  
-        logger.debug("Encryption : %s", get_config()["encryption"])
+        logger.debug("Encryption : %s", self.config_manager.get_config()["encryption"])
         self.setWindowTitle('DataDash: Send File')
         self.setFixedSize(853, 480)   # Updated to 16:9 ratio
         self.center_window()
@@ -322,7 +331,7 @@ class SendApp(QWidget):
         content_layout.addWidget(self.file_path_display)
 
         # Password input (if encryption is enabled)
-        if get_config()["encryption"]:
+        if self.config_manager.get_config()["encryption"]:
             password_layout = QHBoxLayout()
             self.password_label = QLabel('Encryption Password:')
             self.password_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
@@ -537,7 +546,7 @@ class SendApp(QWidget):
     def sendSelectedFiles(self):
         password = None
 
-        if get_config()["encryption"]:
+        if self.config_manager.get_config()["encryption"]:
             password = self.password_input.text()
             if not password:
                 msg_box = QMessageBox(self)

@@ -9,9 +9,10 @@ from PyQt6.QtWidgets import (
     QMessageBox, QListWidget, QListWidgetItem, QFrame
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QPointF, QTimer, QSize
-from PyQt6.QtGui import QScreen, QColor, QLinearGradient, QPainter, QPen, QFont, QIcon, QKeySequence,QKeyEvent
+from PyQt6.QtGui import QScreen, QColor, QLinearGradient, QPainter, QPen, QFont, QIcon, QKeySequence, QKeyEvent
 from loges import logger
-from constant import BROADCAST_PORT, LISTEN_PORT, get_config, RECEIVER_JSON
+from constant import ConfigManager  # Updated import
+from ports import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
 from file_sender import SendApp
 from file_sender_java import SendAppJava
 from file_sender_swift import SendAppSwift
@@ -89,6 +90,8 @@ class BroadcastWorker(QThread):
         self.socket = None
         self.client_socket = None
         self.receiver_data = None
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
 
     def run(self):
         # Start discovering receivers directly
@@ -136,11 +139,11 @@ class BroadcastWorker(QThread):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             
             # Bind to LISTEN_PORT to receive responses
-            s.bind(('', LISTEN_PORT))
-            logger.info("Sending discover packet to %s:%d", broadcast_address, BROADCAST_PORT)
+            s.bind(('', self.config_manager.LISTEN_PORT))
+            logger.info("Sending discover packet to %s:%d", broadcast_address, self.config_manager.BROADCAST_PORT)
             
             # Send discovery packet
-            s.sendto(b'DISCOVER', (broadcast_address, BROADCAST_PORT))
+            s.sendto(b'DISCOVER', (broadcast_address, self.config_manager.BROADCAST_PORT))
             
             # Listen for responses with timeout
             s.settimeout(2)
@@ -170,7 +173,7 @@ class BroadcastWorker(QThread):
             # Create a new socket for connection
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.client_socket.connect((device_ip, RECEIVER_JSON))
+            self.client_socket.connect((device_ip, self.config_manager.RECEIVER_JSON))
 
             device_data = {
                 'device_type': 'python',
@@ -230,6 +233,10 @@ class Broadcast(QWidget):
    
     def __init__(self):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.config_updated.connect(self.on_config_updated)
+        self.config_manager.log_message.connect(logger.info)
+        self.config_manager.start()
         self.setWindowTitle('Device Discovery')
         self.setFixedSize(853, 480)  # Updated to 1280x720 (16:9 ratio)
         self.center_window()
@@ -461,8 +468,8 @@ class Broadcast(QWidget):
         #com.an.Datadash
 
     def show_send_app_swift(self, device_ip, device_name, receiver_data):
-        
-        if get_config()["encryption"] and get_config()["show_warning"]:
+        config = self.config_manager.get_config()
+        if config["encryption"] and config["show_warning"]:
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle("Input Error")
                 msg_box.setText("You have encryption Enabled, unfortunately IOS/IpadOS tranfer doesn't support that yet. Clicking ok will bypass your encryption settings for this file transfer.")
@@ -542,6 +549,10 @@ class Broadcast(QWidget):
                 print("Socket closed manually.")
             except Exception as e:
                 print(f"Error stopping socket: {str(e)}")
+
+    def on_config_updated(self, config):
+        """Handler for config updates"""
+        self.current_config = config
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

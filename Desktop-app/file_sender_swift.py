@@ -11,7 +11,7 @@ import os
 import socket
 import struct
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
-from constant import get_config
+from constant import ConfigManager
 from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
@@ -21,11 +21,12 @@ RECEIVER_DATA = 57341
 class FileSenderSwift(QThread):
     progress_update = pyqtSignal(int)
     file_send_completed = pyqtSignal(str)
-    config = get_config()
     password = None
 
     def __init__(self, ip_address, file_paths, password=None, receiver_data=None):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
         self.ip_address = ip_address
         self.file_paths = file_paths
         self.password = password
@@ -60,9 +61,9 @@ class FileSenderSwift(QThread):
             return
         
         # Reload config on each file transfer session
-        self.config = get_config()
+        self.config = self.config_manager.get_config()
 
-        self.encryption_flag = self.config['swift_encryption']
+        self.encryption_flag = self.config_manager.get_config()["swift_encryption"]
         # logger.debug("Encryption flag: %s", self.encryption_flag)
 
         for file_path in self.file_paths:
@@ -241,20 +242,24 @@ class Receiver(QListWidgetItem):
         self.setText(f"{self._name} ({self._ip_address})")
 
 class SendAppSwift(QWidget):
-    config = get_config()
-
     def __init__(self,ip_address,device_name,receiver_data):
+        super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.config_updated.connect(self.on_config_updated)
+        self.config_manager.log_message.connect(logger.info)
+        self.config_manager.start()
         self.ip_address = ip_address
         self.device_name = device_name
         self.receiver_data = receiver_data
-        super().__init__()
         self.initUI()
         self.progress_bar.setVisible(False)
         self.setFixedSize(853, 480) 
 
+    def on_config_updated(self, config):
+        self.current_config = config
+
     def initUI(self):
-        self.config = get_config()
-        logger.debug("Encryption : %s", self.config['swift_encryption'])
+        logger.debug("Encryption : %s", self.config_manager.get_config()["swift_encryption"])
         self.setWindowTitle('Send File')
         self.setGeometry(100, 100, 400, 300)
         self.center_window()
@@ -309,7 +314,7 @@ class SendAppSwift(QWidget):
         content_layout.addWidget(self.file_path_display)
 
         # Password input (if encryption is enabled)
-        if self.config['swift_encryption']:
+        if self.config_manager.get_config()['swift_encryption']:
             password_layout = QHBoxLayout()
             self.password_label = QLabel('Encryption Password:')
             self.password_label.setStyleSheet("color: white; font-size: 14px;")
@@ -490,7 +495,7 @@ class SendAppSwift(QWidget):
         ip_address = self.ip_address
         print(self.file_paths)
 
-        if self.config['swift_encryption']:
+        if self.config_manager.get_config()['swift_encryption']:
             password = self.password_input.text()
             if not self.password_input.text():
                 QMessageBox.critical(None, "Password Error", "Please enter a password.")

@@ -3,13 +3,14 @@ import platform
 import socket
 import struct
 import threading
-from PyQt6.QtCore import QThread, pyqtSignal,QTimer,Qt
+from PyQt6.QtCore import QThread, pyqtSignal, QTimer, Qt
 from PyQt6 import QtCore
 from PyQt6.QtWidgets import (
-    QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication,QHBoxLayout
+    QMessageBox, QWidget, QVBoxLayout, QLabel, QProgressBar, QApplication, QHBoxLayout
 )
 from PyQt6.QtGui import QScreen, QMovie, QKeySequence, QKeyEvent
-from constant import BROADCAST_PORT, LISTEN_PORT, get_config, RECEIVER_JSON
+from constant import ConfigManager  # Updated import
+from ports import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
 from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 from time import sleep
@@ -34,6 +35,8 @@ class FileReceiver(QThread):
         self.server_socket = None
         self.client_socket = None
         self.receiver_worker = None
+        self.config_manager = ConfigManager()
+        self.config_manager.start()
 
     def run(self):
         # Clear all connections on the about to be used ports 
@@ -51,7 +54,7 @@ class FileReceiver(QThread):
 
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow immediate reuse of the address
-        self.server_socket.bind(('0.0.0.0', RECEIVER_JSON))
+        self.server_socket.bind(('0.0.0.0', self.config_manager.RECEIVER_JSON))
         self.server_socket.listen(5)  # Listen for multiple connections
 
         while True:
@@ -112,6 +115,10 @@ class FileReceiver(QThread):
 class ReceiveApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.config_updated.connect(self.on_config_updated)
+        self.config_manager.log_message.connect(logger.info)
+        self.config_manager.start()
         self.initUI()
         self.setFixedSize(853, 480)
         #com.an.Datadash
@@ -210,17 +217,17 @@ class ReceiveApp(QWidget):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('', BROADCAST_PORT))
+            s.bind(('', self.config_manager.BROADCAST_PORT))
 
             while True:
                 if self.file_receiver.broadcasting:
                     message, address = s.recvfrom(1024)
                     message = message.decode()
                     if message == 'DISCOVER':
-                        response = f'RECEIVER:{get_config()["device_name"]}'
+                        response = f'RECEIVER:{self.config_manager.get_config()["device_name"]}'
                         # Create a new socket to send the response on LISTEN_PORT
                         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as response_socket:
-                            response_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
+                            response_socket.sendto(response.encode(), (address[0], self.config_manager.LISTEN_PORT))
                 sleep(1)  # Avoid busy-waiting
 
     def connection_successful(self):

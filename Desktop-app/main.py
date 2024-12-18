@@ -4,10 +4,10 @@ from PyQt6.QtGui import QScreen, QFont, QColor, QIcon, QMovie
 from PyQt6.QtCore import Qt, QTimer, QSize, QThread, pyqtSignal
 import sys
 import os
-from file_receiver import ReceiveApp
+# from file_receiver import ReceiveApp
 from broadcast import Broadcast
 from preferences import PreferencesApp
-from constant import get_config
+from constant import ConfigManager  # Updated import
 import platform
 import requests
 import ctypes
@@ -58,11 +58,11 @@ class VersionCheck(QThread):
         return (v1_parts > v2_parts) - (v1_parts < v2_parts)
 
     def currentversion(self):
-        config= get_config()
-        self.uga_version = config["version"]
+        self.uga_version = self.config_manager.get_config()["version"]
 
     def get_platform_link(self):
-        channel = get_config()["update_channel"]
+        config = self.config_manager.get_config()
+        channel = config["update_channel"]
         logger.info(f"Checking for updates in channel: {channel}")
         if platform.system() == 'Windows':
                 platform_name = 'windows'
@@ -89,9 +89,16 @@ class VersionCheck(QThread):
 class MainApp(QWidget):
     def __init__(self, skip_version_check=False):
         super().__init__()
+        self.config_manager = ConfigManager()
+        self.config_manager.config_updated.connect(self.on_config_updated)
+        self.config_manager.log_message.connect(logger.info)
+        self.config_manager.start()
         self.initUI(skip_version_check)
         self.setFixedSize(853, 480) 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def on_config_updated(self, config):
+        self.current_config = config
 
     def initUI(self, skip_version_check=False):
         self.setWindowTitle('DataDash')
@@ -261,14 +268,14 @@ class MainApp(QWidget):
         y = (screen.height() - window_height) // 2
         self.setGeometry(x, y, window_width, window_height)
         #com.an.Datadash
-        dest = get_config()["save_to_directory"]
+        dest = self.config_manager.get_config()["save_to_directory"]
         if not os.path.exists(dest):
             os.makedirs(dest)
             logger.info("Created folder to receive files")
 
     def sendFile(self):
         # Check if warnings should be shown
-        if get_config()["show_warning"]:
+        if self.config_manager.get_config()["show_warning"]:
             send_dialog = QMessageBox(self)
             send_dialog.setWindowTitle("Note")
             send_dialog.setText("""Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.
@@ -338,7 +345,7 @@ class MainApp(QWidget):
 
     def receiveFile(self):
         # Check if warnings should be shown
-        if get_config()["show_warning"]:
+        if self.config_manager.get_config()["show_warning"]:
             receive_dialog = QMessageBox(self)
             receive_dialog.setWindowTitle("Note")
             receive_dialog.setText("""Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.
@@ -417,8 +424,11 @@ class MainApp(QWidget):
         self.preferences_handler()
 
     def check_update(self):
-        if get_config()["check_update"]:
+        if self.config_manager.get_config()["check_update"]:
             logger.info("Checking for updates")
+            self.version_thread = VersionCheck()
+            self.version_thread.config_manager = self.config_manager  # Pass config manager to version check
+            self.version_thread.update_available.connect(self.showmsgbox)
             self.version_thread.start()
         else:
             logger.info("Update check disabled")
