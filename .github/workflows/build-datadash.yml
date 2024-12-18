@@ -22,7 +22,7 @@ jobs:
       - name: Build for macOS
         run: |
           cd Desktop-app
-          pyinstaller --onefile --windowed \
+          pyinstaller --windowed \
           --icon=icon.icns \
           --name="DataDash" \
           --add-data "icons/*:icons" \
@@ -78,7 +78,7 @@ jobs:
       - name: Build for macOS
         run: |
           cd Desktop-app
-          pyinstaller --onefile --windowed \
+          pyinstaller --windowed \
           --icon=icon.icns \
           --name="DataDash" \
           --add-data "icons/*:icons" \
