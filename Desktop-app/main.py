@@ -499,29 +499,6 @@ class MainApp(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    if platform.system() == 'Windows':
-        try:
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin()
-        except:
-            is_admin = False
-        if not is_admin:
-            # Relaunch the script with admin rights
-            script = os.path.abspath(sys.argv[0])
-            params = ' '.join(['"' + arg + '"' for arg in sys.argv[1:]])
-            result = ctypes.windll.shell32.ShellExecuteW(
-                None, "runas", sys.executable, f'"{script}" {params}', None, 1)
-            if result <= 32:
-                # The user declined the UAC prompt or an error occurred
-                msg_box = QMessageBox()
-                msg_box.setIcon(QMessageBox.Icon.Critical)
-                msg_box.setWindowTitle("Admin Privileges Required")
-                msg_box.setText("This application requires administrator privileges to run.")
-                msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-                msg_box.raise_()
-                msg_box.activateWindow()
-                msg_box.exec()
-                sys.exit()
-            sys.exit()
     main = MainApp()
     main.show()
     sys.exit(app.exec())
