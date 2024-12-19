@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main
-      - workflow
-      - Builds-armaan
+      - Extra-Builds
+      - Beta-Builds
 
 jobs:
   build-macos-x64:
