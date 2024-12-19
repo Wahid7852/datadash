@@ -496,7 +496,6 @@ class MainApp(QWidget):
             self.openSettings()
 
 
-
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     main = MainApp()
