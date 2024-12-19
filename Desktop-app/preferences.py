@@ -1002,7 +1002,7 @@ class PreferencesApp(QWidget):
             return
 
         # Modify the filename to include the version number
-        filename = f"datadash_v{latest_version}{file_extension}"
+        filename = f"datadash_v{latest_version}_{channel}{file_extension}"
         file_path = os.path.join(download_path, filename)
 
         # Download the file into the download folder
