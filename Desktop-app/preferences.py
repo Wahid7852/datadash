@@ -984,6 +984,27 @@ class PreferencesApp(QWidget):
             logger.error("Unsupported OS or architecture!")
             return None
 
+        # Fetch the latest version number
+        url = self.get_platform_link()
+        logger.info(f"Fetching latest version from: {url}")
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
+            if "value" in data:
+                latest_version = data["value"]
+                logger.info(f"Latest version: {latest_version}")
+            else:
+                logger.error("Version info not found in response.")
+                return
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching latest version: {e}")
+            return
+
+        # Modify the filename to include the version number
+        filename = f"datadash_v{latest_version}{file_extension}"
+        file_path = os.path.join(download_path, filename)
+
         # Download the file into the download folder
         try:
             response = requests.get(download_link, stream=True)
@@ -1050,8 +1071,7 @@ class PreferencesApp(QWidget):
             progress_dialog.show()
             downloaded_size = 0
             start_time = time.time()
-            filename = os.path.join(download_path, 'DataDash' + file_extension)
-            with open(filename, 'wb') as f:
+            with open(file_path, 'wb') as f:
                 for data in response.iter_content(block_size):
                     if progress_dialog.wasCanceled():
                         msg_box = QMessageBox(self)
@@ -1102,7 +1122,7 @@ class PreferencesApp(QWidget):
                         msg_box.exec()
                         logger.info("Download canceled by user")
                         f.close()
-                        os.remove(filename)
+                        os.remove(file_path)
                         return None
                     f.write(data)
                     downloaded_size += len(data)
@@ -1126,11 +1146,11 @@ class PreferencesApp(QWidget):
 
             # Set chmod permission for linux
             if platform_os == "linux":
-                run(['chmod', '+x', filename])
+                run(['chmod', '+x', file_path])
 
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Download Complete")
-            msg_box.setText(f"File downloaded to {filename}")
+            msg_box.setText(f"File downloaded to {file_path}")
             msg_box.setIcon(QMessageBox.Icon.Information)
             msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
             msg_box.setStyleSheet("""
@@ -1224,7 +1244,7 @@ class PreferencesApp(QWidget):
             msg_box.exec()
             return None
 
-        return filename
+        return file_path
         
     def update_channel_preference(self, index):
         channel = "stable" if index == 0 else "beta"
