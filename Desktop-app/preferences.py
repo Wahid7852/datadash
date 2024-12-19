@@ -745,6 +745,7 @@ class PreferencesApp(QWidget):
 
     def fetch_platform_value(self):
         url = self.get_platform_link()
+        channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Fetching platform value from: {url}")
         
         try:
@@ -776,7 +777,10 @@ class PreferencesApp(QWidget):
 
                 open_button = msg_box.button(QMessageBox.StandardButton.Open)
                 if open_button:
-                    open_button.setText("Open Downloads Page")
+                    if channel == "stable":
+                        open_button.setText("Open Download Page")
+                    elif channel == "beta":
+                        open_button.setText("Open Beta Page")
 
                 download_button = msg_box.button(QMessageBox.StandardButton.Apply)
                 if download_button:
