@@ -13,9 +13,7 @@ from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 import time
 import shutil
-
-SENDER_DATA = 57000
-RECEIVER_DATA = 58000
+from portsss import RECEIVER_DATA_DESKTOP
 
 class ReceiveWorkerPython(QThread):
     progress_update = pyqtSignal(int)
@@ -65,13 +63,13 @@ class ReceiveWorkerPython(QThread):
             self.server_skt.settimeout(60)
 
             # Bind and listen
-            self.server_skt.bind(('', RECEIVER_DATA))
+            self.server_skt.bind(('', RECEIVER_DATA_DESKTOP))
             self.server_skt.listen(1)
-            logger.debug("Server initialized on port %d", RECEIVER_DATA)
+            logger.debug("Server initialized on port %d", RECEIVER_DATA_DESKTOP)
 
         except OSError as e:
             if e.errno == 48:  # Address already in use
-                logger.error("Port %d is in use, waiting to retry...", RECEIVER_DATA)
+                logger.error("Port %d is in use, waiting to retry...", RECEIVER_DATA_DESKTOP)
                 time.sleep(1)
                 self.initialize_connection()
             else:

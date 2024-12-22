@@ -15,8 +15,7 @@ from constant import ConfigManager
 from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
-
-RECEIVER_DATA = 57341
+from portsss import RECEIVER_DATA_ANDROID
 
 class FileSenderJava(QThread):
     progress_update = pyqtSignal(int)
@@ -45,7 +44,7 @@ class FileSenderJava(QThread):
             self.client_skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.client_skt.settimeout(30)  # 30 second timeout
             
-            self.client_skt.connect((self.ip_address, 57341))
+            self.client_skt.connect((self.ip_address, RECEIVER_DATA_ANDROID))
             logger.debug(f"Successfully connected to {self.ip_address} on port 57341")
             return True
             

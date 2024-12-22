@@ -13,8 +13,7 @@ import subprocess
 import platform
 import time
 import shutil
-
-RECEIVER_DATA = 57341
+from portsss import RECEIVER_DATA_SWIFT
 
 class ReceiveWorkerSwift(QThread):
     progress_update = pyqtSignal(int)
@@ -61,13 +60,13 @@ class ReceiveWorkerSwift(QThread):
             self.server_skt.settimeout(60)
             
             # Bind and listen
-            self.server_skt.bind(('', RECEIVER_DATA))
+            self.server_skt.bind(('', RECEIVER_DATA_SWIFT))
             self.server_skt.listen(1)
-            logger.debug("Server initialized on port %d", RECEIVER_DATA)
+            logger.debug("Server initialized on port %d", RECEIVER_DATA_SWIFT)
             
         except OSError as e:
             if e.errno == 48:  # Address already in use
-                logger.error("Port %d is in use, waiting to retry...", RECEIVER_DATA)
+                logger.error("Port %d is in use, waiting to retry...", RECEIVER_DATA_SWIFT)
                 time.sleep(1)
                 self.initialize_connection()
             else:

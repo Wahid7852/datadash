@@ -16,9 +16,7 @@ from constant import ConfigManager  # Updated import
 from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
-
-SENDER_DATA = 57000
-RECEIVER_DATA = 58000
+from portsss import RECEIVER_DATA_DESKTOP
 
 class FileSender(QThread):
     progress_update = pyqtSignal(int)
@@ -68,8 +66,8 @@ class FileSender(QThread):
         try:
             self.client_skt.bind(('', 0))  # Bind to any available port assigned by the OS
             logger.debug(f"Bound to port {self.client_skt.getsockname()[1]}")  # Log the assigned port for debugging
-            self.client_skt.connect((self.ip_address, RECEIVER_DATA))  # Connect to receiver's IP and port
-            logger.debug(f"Successfully connected to {self.ip_address} on port {RECEIVER_DATA}")
+            self.client_skt.connect((self.ip_address, RECEIVER_DATA_DESKTOP))  # Connect to receiver's IP and port
+            logger.debug(f"Successfully connected to {self.ip_address} on port {RECEIVER_DATA_DESKTOP}")
         except ConnectionRefusedError:
             logger.error("Connection refused: Failed to connect to the specified IP address.")
             self.show_message_box("Connection Error", "Failed to connect to the specified IP address.")
