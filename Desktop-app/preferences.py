@@ -933,7 +933,15 @@ class PreferencesApp(QWidget):
         # Determine platform OS and download path
         if platform.system() == 'Windows':
             platform_os = 'windows'
-            download_path = os.path.join(os.getenv('USERPROFILE'), 'Downloads')
+            possible_paths = [
+                os.path.join(os.getenv('USERPROFILE'), 'Downloads'),
+                os.path.join(os.getenv('HOMEDRIVE'), os.getenv('HOMEPATH'), 'Downloads'),
+                os.path.expanduser('~\\Downloads')
+            ]
+            download_path = next((path for path in possible_paths if os.path.exists(path)), None)
+            if not download_path:
+                logger.error("Could not find Windows Downloads folder!")
+                return None
             file_extension = '.exe'
         elif platform.system() == 'Linux':
             platform_os = 'linux'
