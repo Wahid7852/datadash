@@ -134,14 +134,41 @@ public class EncryptionUtils {
         outputStream.close();
     }
 
+    private static File handleFileConflict(File file) {
+        if (!file.exists()) return file;
+
+        String name = file.getName();
+        String parent = file.getParent();
+        String nameNoExt = name;
+        String extension = "";
+
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex > 0) {
+            nameNoExt = name.substring(0, dotIndex);
+            extension = name.substring(dotIndex);
+        }
+
+        int counter = 1;
+        File newFile;
+        do {
+            newFile = new File(parent, nameNoExt + " (" + counter + ")" + extension);
+            counter++;
+        } while (newFile.exists());
+
+        return newFile;
+    }
+
     public static void decryptFile(String password,
                                    File inputFile, File outputFile) throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException, IOException, IllegalBlockSizeException,
             BadPaddingException, InvalidKeySpecException {
 
         final String algorithm = "AES/CBC/PKCS5Padding";
+        
+        // Handle file naming conflicts
+        File finalOutputFile = handleFileConflict(outputFile);
         FileInputStream inputStream = new FileInputStream(inputFile);
-        FileOutputStream outputStream = new FileOutputStream(outputFile);
+        FileOutputStream outputStream = new FileOutputStream(finalOutputFile);
 
         byte[] salt = new byte[16];
         byte[] ivBytes = new byte[16];
