@@ -140,9 +140,13 @@ class FileSender(QThread):
         temp_dir = self.get_temp_dir()
         if folder_path:
             metadata = []
+            # Normalize the base folder path
+            folder_path = os.path.normpath(folder_path)
+            
             for root, dirs, files in os.walk(folder_path):
                 for file in files:
                     file_path = os.path.join(root, file)
+                    # Always use forward slashes for relative paths
                     relative_path = os.path.relpath(file_path, folder_path).replace('\\', '/')
                     file_size = os.path.getsize(file_path)
                     metadata.append({
@@ -151,52 +155,36 @@ class FileSender(QThread):
                     })
                 for dir in dirs:
                     dir_path = os.path.join(root, dir)
-                    relative_path = os.path.relpath(dir_path, folder_path).replace('\\', '/')
+                    # Always use forward slashes for directory paths
+                    relative_path = os.path.relpath(dir_path, folder_path).replace('\\', '/') 
                     metadata.append({
                         'path': relative_path + '/',
                         'size': 0
                     })
-            metadata.append({'base_folder_name': os.path.basename(folder_path), 'path': '.delete', 'size': 0})
+            # Normalize the base folder name
+            base_folder_name = os.path.basename(folder_path)
+            metadata.append({'base_folder_name': base_folder_name, 'path': '.delete', 'size': 0})
             metadata_json = json.dumps(metadata)
             metadata_file_path = os.path.join(temp_dir, 'metadata.json')
             with open(metadata_file_path, 'w') as f:
                 f.write(metadata_json)
-            self.metadata_created = True
             return metadata_file_path
-        elif file_paths:
-            metadata = []
-            for file_path in file_paths:
-                file_size = os.path.getsize(file_path)
-                metadata.append({
-                    'path': os.path.basename(file_path),
-                    'size': file_size
-                })
-            metadata_json = json.dumps(metadata)
-            metadata_file_path = os.path.join(temp_dir, 'metadata.json')
-            with open(metadata_file_path, 'w') as f:
-                f.write(metadata_json)
-            self.metadata_created = True
-            return metadata_file_path
-            
+
     def send_folder(self, folder_path):
-        print("Sending folder")
-        #com.an.Datadash
-        
-        if not self.metadata_created:
-            metadata_file_path = self.create_metadata(folder_path=folder_path)
-            metadata = json.loads(open(metadata_file_path).read())
-            self.send_file(metadata_file_path, count=False)
+        logger.debug("Sending folder: %s", folder_path)
+        # Normalize the base folder path
+        folder_path = os.path.normpath(folder_path)
 
-        for file_info in metadata:
-            relative_file_path = file_info['path']
-            file_path = os.path.join(folder_path, relative_file_path)
-            if not relative_file_path.endswith('.delete'):
-                if file_info['size'] > 0:
-                    if self.encryption_flag:
-                        relative_file_path += ".crypt"
-                    self.send_file(file_path, relative_file_path=relative_file_path, encrypted_transfer=self.encryption_flag)
-
-        os.remove(metadata_file_path)
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Always use forward slashes for relative paths
+                relative_path = os.path.relpath(file_path, folder_path).replace('\\', '/')
+                
+                if self.encryption_flag:
+                    relative_path += ".crypt"
+                
+                self.send_file(file_path, relative_file_path=relative_path, encrypted_transfer=self.encryption_flag)
 
     def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False, count=True):
         logger.debug("Sending file: %s", file_path)

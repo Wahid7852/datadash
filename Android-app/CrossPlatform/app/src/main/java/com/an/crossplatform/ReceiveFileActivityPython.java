@@ -412,7 +412,9 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
     private String createFolderStructure(JSONArray metadataArray, String basePath) {
         try {
-            // Get base folder name from metadata
+            // Normalize base path
+            basePath = basePath.replace('\\', '/');
+            
             String baseFolderName = null;
             for (int i = 0; i < metadataArray.length(); i++) {
                 JSONObject entry = metadataArray.getJSONObject(i);
@@ -434,7 +436,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
             // Create all directories from metadata
             for (int i = 0; i < metadataArray.length(); i++) {
                 JSONObject entry = metadataArray.getJSONObject(i);
-                String path = entry.getString("path");
+                String path = entry.getString("path").replace('\\', '/');
                 
                 if (path.equals(".delete")) continue;
                 
@@ -445,7 +447,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
                 }
             }
 
-            return baseFolder.getAbsolutePath();
+            return baseFolder.getAbsolutePath().replace('\\', '/');
         } catch (JSONException e) {
             FileLogger.log("ReceiveFileActivityPython", "Error processing metadata", e);
             return basePath;
@@ -453,6 +455,9 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
     }
 
     private File handleFileConflict(File file) {
+        // Normalize the file path
+        file = new File(file.getAbsolutePath().replace('\\', '/'));
+        
         if (!file.exists()) return file;
 
         String name = file.getName();
