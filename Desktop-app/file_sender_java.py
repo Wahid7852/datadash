@@ -15,7 +15,7 @@ from constant import ConfigManager
 from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
-from portsss import RECEIVER_DATA_ANDROID
+from portsss import RECEIVER_DATA_ANDROID,CHUNK_SIZE_ANDROID
 
 class FileSenderJava(QThread):
     progress_update = pyqtSignal(int)
@@ -117,7 +117,7 @@ class FileSenderJava(QThread):
             for root, dirs, files in os.walk(folder_path):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(file_path, folder_path)
+                    relative_path = os.path.relpath(file_path, folder_path).replace('\\', '/')
                     file_size = os.path.getsize(file_path)
                     metadata.append({
                         'path': relative_path,
@@ -125,7 +125,7 @@ class FileSenderJava(QThread):
                     })
                 for dir in dirs:
                     dir_path = os.path.join(root, dir)
-                    relative_path = os.path.relpath(dir_path, folder_path)
+                    relative_path = os.path.relpath(dir_path, folder_path).replace('\\', '/')
                     metadata.append({
                         'path': relative_path + '/',
                         'size': 0  # Size is 0 for directories
@@ -195,7 +195,7 @@ class FileSenderJava(QThread):
             sent_size = 0
             with open(file_path, 'rb') as f:
                 while sent_size < file_size:
-                    chunk = f.read(4096)
+                    chunk = f.read(CHUNK_SIZE_ANDROID)
                     if not chunk:
                         break
                     self.client_skt.sendall(chunk)

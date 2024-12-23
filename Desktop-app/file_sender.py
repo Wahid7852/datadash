@@ -16,7 +16,7 @@ from constant import ConfigManager  # Updated import
 from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
-from portsss import RECEIVER_DATA_DESKTOP
+from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
 
 class FileSender(QThread):
     progress_update = pyqtSignal(int)
@@ -224,7 +224,7 @@ class FileSender(QThread):
 
         with open(file_path, 'rb') as f:
             while sent_size < file_size:
-                data = f.read(4096)
+                data = f.read(CHUNK_SIZE_DESKTOP)
                 self.client_skt.sendall(data)
                 sent_size += len(data)
                 self.progress_update.emit(sent_size * 100 // file_size)

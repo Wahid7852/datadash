@@ -13,7 +13,7 @@ from loges import logger
 from crypt_handler import decrypt_file, Decryptor
 import time
 import shutil
-from portsss import RECEIVER_DATA_DESKTOP
+from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
 
 class ReceiveWorkerPython(QThread):
     progress_update = pyqtSignal(int)
@@ -199,7 +199,7 @@ class ReceiveWorkerPython(QThread):
                     # Receive file data in chunks
                     with open(file_path, "wb") as f:
                         while received_size < file_size:
-                            chunk_size = min(4096, file_size - received_size)
+                            chunk_size = min(CHUNK_SIZE_DESKTOP, file_size - received_size)
                             data = self._receive_data(self.client_skt, chunk_size)
                             if not data:
                                 logger.error("Failed to receive data. Connection may have been closed.")

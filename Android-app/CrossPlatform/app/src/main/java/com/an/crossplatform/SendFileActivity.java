@@ -84,6 +84,7 @@ public class SendFileActivity extends AppCompatActivity {
     Button selectFolderButton;
     Button sendButton;
     private static final int FILE_TRANSFER_PORT = 63152;
+    private static final int BUFFER_SIZE = 4096;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -658,7 +659,7 @@ public class SendFileActivity extends AppCompatActivity {
                         dos.flush();
 
                         // Send the file data
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[BUFFER_SIZE];
                         long sentSize = 0;
 
                         while (sentSize < fileSize) {

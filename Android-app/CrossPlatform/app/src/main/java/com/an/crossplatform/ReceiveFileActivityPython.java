@@ -67,6 +67,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
     private static final int MAX_RETRIES = 3;
     private static final int RETRY_DELAY_MS = 1000;
     private static final int SOCKET_TIMEOUT = 30000; // 30 seconds
+    private static final int BUFFER_SIZE = 4096;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -317,7 +318,7 @@ public class ReceiveFileActivityPython extends AppCompatActivity {
 
                     // Receive file data
                     try (FileOutputStream fos = new FileOutputStream(receivedFile)) {
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[BUFFER_SIZE];
                         long receivedSize = 0;
 
                         while (receivedSize < fileSize) {

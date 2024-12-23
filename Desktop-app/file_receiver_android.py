@@ -13,7 +13,7 @@ import subprocess
 import platform
 import time
 import shutil
-from portsss import RECEIVER_DATA_ANDROID
+from portsss import RECEIVER_DATA_ANDROID, CHUNK_SIZE_ANDROID
 
 class ReceiveWorkerJava(QThread):
     progress_update = pyqtSignal(int)
@@ -189,7 +189,7 @@ class ReceiveWorkerJava(QThread):
                         received_size = 0
                         remaining = file_size
                         while remaining > 0:
-                            chunk_size = min(4096, remaining)
+                            chunk_size = min(CHUNK_SIZE_ANDROID, remaining)
                             data = self.client_skt.recv(chunk_size)
                             if not data:
                                 raise ConnectionError("Connection lost during file reception.")

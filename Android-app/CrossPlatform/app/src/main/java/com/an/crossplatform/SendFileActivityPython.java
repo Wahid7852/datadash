@@ -84,6 +84,7 @@ public class SendFileActivityPython extends AppCompatActivity {
     Button selectFileButton, selectFolderButton, sendButton;
     boolean isEncryptionEnabled;
     private EditText passwordField;
+    private static final int BUFFER_SIZE = 4096;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -702,7 +703,7 @@ public class SendFileActivityPython extends AppCompatActivity {
                         dos.flush();
 
                         // Step 5: Send the file data
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[BUFFER_SIZE];
                         long sentSize = 0;
 
                         while (sentSize < fileSize) {
