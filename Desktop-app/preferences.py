@@ -728,149 +728,156 @@ class PreferencesApp(QWidget):
 
     def fetch_platform_value(self):
         url = self.get_platform_link()
-        channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Fetching platform value from: {url}")
-        
+        version_data = self.fetch_version_data(url)
+        if version_data:
+            self.show_version_dialog(version_data)
+
+    def fetch_version_data(self, url):
         try:
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
             if "value" in data:
                 logger.info(f"Value for python: {data['value']}")
-                fetched_version = data['value']
-                
-                if self.compare_versions(fetched_version, self.uga_version) == 0:
-                    message = "You are on the latest version."
-                    buttons = QMessageBox.StandardButton.Ok
-                elif self.compare_versions(fetched_version, self.uga_version) > 0:
-                    message = "You are on an older version. Please update."
-                    buttons = QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Apply
-                elif self.compare_versions(fetched_version, self.uga_version) < 0:
-                    message = "You are on a newer version. Please downgrade to the latest available version."
-                    buttons = QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Apply
-                else:
-                    message = "Server error, Please try again later."
-                    buttons = QMessageBox.StandardButton.Ok
-
-                msg_box = QMessageBox(self)
-                msg_box.setWindowTitle("Version Check")
-                msg_box.setText(message)
-                msg_box.setIcon(QMessageBox.Icon.Information)
-                msg_box.setStandardButtons(buttons)
-
-                open_button = msg_box.button(QMessageBox.StandardButton.Open)
-                if open_button:
-                    if channel == "stable":
-                        open_button.setText("Open Download Page")
-                    elif channel == "beta":
-                        open_button.setText("Open Beta Page")
-
-                download_button = msg_box.button(QMessageBox.StandardButton.Apply)
-                if download_button:
-                    download_button.setText("Download Latest Version")
-
-                # Apply the same styling as before
-                msg_box.setStyleSheet("""
-                    QMessageBox {
-                        background: qlineargradient(
-                            x1: 0, y1: 0, x2: 1, y2: 1,
-                            stop: 0 #b0b0b0,
-                            stop: 1 #505050
-                        );
-                        color: #FFFFFF;
-                        font-size: 16px;
-                    }
-                    QLabel {
-                        background-color: transparent; 
-                    }
-                    QPushButton {
-                        background: qlineargradient(
-                            x1: 0, y1: 0, x2: 1, y2: 0,
-                            stop: 0 rgba(47, 54, 66, 255),
-                            stop: 1 rgba(75, 85, 98, 255)
-                        );
-                        color: white;
-                        border-radius: 10px;
-                        border: 1px solid rgba(0, 0, 0, 0.5);
-                        padding: 4px;
-                        font-size: 16px;
-                    }
-                    QPushButton:hover {
-                        background: qlineargradient(
-                            x1: 0, y1: 0, x2: 1, y2: 0,
-                            stop: 0 rgba(60, 68, 80, 255),
-                            stop: 1 rgba(90, 100, 118, 255)
-                        );
-                    }
-                    QPushButton:pressed {
-                        background: qlineargradient(
-                            x1: 0, y1: 0, x2: 1, y2: 0,
-                            stop: 0 rgba(35, 41, 51, 255),
-                            stop: 1 rgba(65, 75, 88, 255)
-                        );
-                    }
-                """)
-                
-                reply = msg_box.exec()
-
-                if reply == QMessageBox.StandardButton.Open:
-                    self.download_page()
-                elif reply == QMessageBox.StandardButton.Apply:
-                    logger.info(f"Download path: {self.get_update_download()}")
-                return fetched_version
-
+                return data['value']
             else:
                 logger.error(f"Value key not found in response: {data}")
+                return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching platform value: {e}")
-            message = "Server error, Please check your internet connection or try again later."
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Version Check")
-            msg_box.setText(message)
-            msg_box.setIcon(QMessageBox.Icon.Critical)
-            msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            self.show_error_dialog("Server error, Please check your internet connection or try again later.")
+            return None
 
-            msg_box.setStyleSheet("""
-                QMessageBox {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #b0b0b0,
-                        stop: 1 #505050
-                    );
-                    color: #FFFFFF;
-                    font-size: 16px;
-                }
-                QLabel {
-                    background-color: transparent; /* Make the label background transparent */
-                }
-                QPushButton {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(47, 54, 66, 255),
-                        stop: 1 rgba(75, 85, 98, 255)
-                    );
-                    color: white;
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 0.5);
-                    padding: 4px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(60, 68, 80, 255),
-                        stop: 1 rgba(90, 100, 118, 255)
-                    );
-                }
-                QPushButton:pressed {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(35, 41, 51, 255),
-                        stop: 1 rgba(65, 75, 88, 255)
-                    );
-                }
-            """)
-            msg_box.exec()
+    def show_version_dialog(self, fetched_version):
+        channel = self.config_manager.get_config()["update_channel"]
+        
+        if self.compare_versions(fetched_version, self.uga_version) == 0:
+            message = "You are on the latest version."
+            buttons = QMessageBox.StandardButton.Ok
+        elif self.compare_versions(fetched_version, self.uga_version) > 0:
+            message = "You are on an older version. Please update."
+            buttons = QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Apply
+        elif self.compare_versions(fetched_version, self.uga_version) < 0:
+            message = "You are on a newer version. Please downgrade to the latest available version."
+            buttons = QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Apply
+        else:
+            message = "Server error, Please try again later."
+            buttons = QMessageBox.StandardButton.Ok
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Version Check")
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.setStandardButtons(buttons)
+
+        open_button = msg_box.button(QMessageBox.StandardButton.Open)
+        if open_button:
+            if channel == "stable":
+                open_button.setText("Open Download Page")
+            elif channel == "beta":
+                open_button.setText("Open Beta Page")
+
+        download_button = msg_box.button(QMessageBox.StandardButton.Apply)
+        if download_button:
+            download_button.setText("Download Latest Version")
+
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #b0b0b0,
+                    stop: 1 #505050
+                );
+                color: #FFFFFF;
+                font-size: 16px;
+            }
+            QLabel {
+                background-color: transparent; 
+            }
+            QPushButton {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(47, 54, 66, 255),
+                    stop: 1 rgba(75, 85, 98, 255)
+                );
+                color: white;
+                border-radius: 10px;
+                border: 1px solid rgba(0, 0, 0, 0.5);
+                padding: 4px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(60, 68, 80, 255),
+                    stop: 1 rgba(90, 100, 118, 255)
+                );
+            }
+            QPushButton:pressed {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(35, 41, 51, 255),
+                    stop: 1 rgba(65, 75, 88, 255)
+                );
+            }
+        """)
+        
+        reply = msg_box.exec()
+
+        if reply == QMessageBox.StandardButton.Open:
+            self.download_page()
+        elif reply == QMessageBox.StandardButton.Apply:
+            logger.info(f"Download path: {self.get_update_download()}")
+
+    def show_error_dialog(self, message):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Version Check")
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #b0b0b0,
+                    stop: 1 #505050
+                );
+                color: #FFFFFF;
+                font-size: 16px;
+            }
+            QLabel {
+                background-color: transparent;
+            }
+            QPushButton {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(47, 54, 66, 255),
+                    stop: 1 rgba(75, 85, 98, 255)
+                );
+                color: white;
+                border-radius: 10px;
+                border: 1px solid rgba(0, 0, 0, 0.5);
+                padding: 4px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(60, 68, 80, 255),
+                    stop: 1 rgba(90, 100, 118, 255)
+                );
+            }
+            QPushButton:pressed {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(35, 41, 51, 255),
+                    stop: 1 rgba(65, 75, 88, 255)
+                );
+            }
+        """)
+        msg_box.exec()
 
     def compare_versions(self, v1, v2):
         v1_parts = [int(part) for part in v1.split('.')]
