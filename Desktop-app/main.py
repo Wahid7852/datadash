@@ -12,6 +12,8 @@ import platform
 import requests
 import ctypes
 from loges import logger
+import subprocess
+import json
 
 class VersionCheck(QThread):
     update_available = pyqtSignal()
@@ -60,6 +62,7 @@ class VersionCheck(QThread):
 
     def currentversion(self):
         self.uga_version = self.config_manager.get_config()["version"]
+        logger.info(f"Current App version: {self.uga_version}")
 
     def get_platform_link(self):
         config = self.config_manager.get_config()
@@ -278,7 +281,90 @@ class MainApp(QWidget):
             os.makedirs(dest)
             logger.info("Created folder to receive files")
 
+    def check_network_type_windows(self):
+        try:
+            # PowerShell command to get network profile
+            cmd = 'Get-NetConnectionProfile | ConvertTo-Json'
+            result = subprocess.run(['powershell', '-Command', cmd], 
+                                 capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                network_data = json.loads(result.stdout)
+                # If multiple networks, check them all
+                if isinstance(network_data, list):
+                    for network in network_data:
+                        if network.get('NetworkCategory') == 'Public':
+                            logger.warning("Connected to a Public network")
+                            return 'Public'
+                else:
+                    if network_data.get('NetworkCategory') == 'Public':
+                        logger.warning("Connected to a Public network")
+                        return 'Public'
+                
+                logger.info("Connected to a Private network")
+                return 'Private'
+        except Exception as e:
+            logger.error(f"Error checking network type: {e}")
+            return None
+        
+    def show_network_warning(self):
+        warning = QMessageBox(self)
+        warning.setWindowTitle("Network Security Warning")
+        warning.setText("You are connected to a Public network!\n\n"
+                       "For security reasons, this application should only be used on Private/Home networks.")
+        warning.setIcon(QMessageBox.Icon.Warning)
+        warning.setStandardButtons(QMessageBox.StandardButton.Ok)
+        warning.setStyleSheet("""
+                QMessageBox {
+                    background: qlineargradient(
+                        x1: 0, y1: 0, x2: 1, y2: 1,
+                        stop: 0 #b0b0b0,
+                        stop: 1 #505050
+                    );
+                    color: #FFFFFF;
+                    font-size: 16px;
+                }
+                QLabel {
+                    background-color: transparent;  /* Transparent text background */
+                    font-size: 16px;
+                }
+                QPushButton {
+                    background: qlineargradient(
+                        x1: 0, y1: 0, x2: 1, y2: 0,
+                        stop: 0 rgba(47, 54, 66, 255),
+                        stop: 1 rgba(75, 85, 98, 255)
+                    );
+                    color: white;
+                    border-radius: 10px;
+                    border: 1px solid rgba(0, 0, 0, 0.5);
+                    padding: 4px;
+                    font-size: 16px;
+                }
+                QPushButton:hover {
+                    background: qlineargradient(
+                        x1: 0, y1: 0, x2: 1, y2: 0,
+                        stop: 0 rgba(60, 68, 80, 255),
+                        stop: 1 rgba(90, 100, 118, 255)
+                    );
+                }
+                QPushButton:pressed {
+                    background: qlineargradient(
+                        x1: 0, y1: 0, x2: 1, y2: 0,
+                        stop: 0 rgba(35, 41, 51, 255),
+                        stop: 1 rgba(65, 75, 88, 255)
+                    );
+                }
+            """)
+        warning.exec()
+        sys.exit()
+
     def sendFile(self):
+        if platform.system() == 'Windows':
+            network_type = self.check_network_type_windows()
+            if network_type == 'Public':
+                if not self.show_network_warning():
+                    return
+
         # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
             send_dialog = QMessageBox(self)
@@ -349,6 +435,12 @@ class MainApp(QWidget):
             self.broadcast_app.show()
 
     def receiveFile(self):
+        if platform.system() == 'Windows':
+            network_type = self.check_network_type_windows()
+            if network_type == 'Public':
+                if not self.show_network_warning():
+                    return
+
         # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
             receive_dialog = QMessageBox(self)
