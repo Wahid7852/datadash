@@ -16,19 +16,18 @@ from PyQt6.QtWidgets import QProgressDialog
 from subprocess import run
 
 class UpdateManager(QThread):
-    version_check_complete = pyqtSignal(str, str, bool)  # version, message, has_update
-    download_progress = pyqtSignal(int, int, float, float)  # downloaded, total, speed, time_remaining
-    download_complete = pyqtSignal(str, bool, str)  # message, success, file_path
+    version_check_complete = pyqtSignal(str, str, bool)
+    download_progress = pyqtSignal(int, int, float, float)
+    download_complete = pyqtSignal(str, bool, str)
     
     def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
         self.should_cancel = False
         self.uga_version = self.config_manager.get_config()["version"]
-        self.action = None  # Add this to track what action to perform
+        self.action = None
     
     def run(self):
-        # This will be called when the thread starts
         if self.action == "check_version":
             url = self.get_platform_link()
             version_data = self.fetch_version_data(url)
@@ -165,19 +164,16 @@ class UpdateManager(QThread):
         channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Checking for updates in channel: {channel}")
         
-        # Get platform info
         platform_info = self.get_platform_info()
         if not platform_info:
             return None
         
         platform_os, platform_type, download_path, file_extension = platform_info
         
-        # Get download link
         download_link = self.get_download_link(channel, platform_os, platform_type)
         if not download_link:
             return None
-        
-        # Get latest version
+
         latest_version = self.get_latest_version()
         if not latest_version:
             return None
@@ -980,7 +976,7 @@ class PreferencesApp(QWidget):
         help_dialog.exec()
 
     def fetch_platform_value(self):
-        self.update_manager.check_version()  # Changed from start() to check_version()
+        self.update_manager.check_version()
 
     def update_progress_dialog(self, downloaded_size, total_size, speed_kbps, time_remaining):
         if not hasattr(self, 'progress_dialog'):
@@ -1076,7 +1072,7 @@ class PreferencesApp(QWidget):
         if reply == QMessageBox.StandardButton.Open:
             self.download_page()
         elif reply == QMessageBox.StandardButton.Apply:
-            self.update_manager.initiate_download()  # Changed from start_download()
+            self.update_manager.initiate_download()
 
     def show_message_dialog(self, title, message, icon):
         msg_box = QMessageBox(self)
