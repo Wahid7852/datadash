@@ -16,7 +16,6 @@ from portsss import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
 from file_sender import SendApp
 from file_sender_java import SendAppJava
 from file_sender_swift import SendAppSwift
-import netifaces
 import os
 
 class CircularDeviceButton(QWidget):
@@ -99,9 +98,26 @@ class BroadcastWorker(QThread):
         self.discover_receivers()
 
     def get_broadcast(self):
-        try:       
-        # Check for private IP ranges only
-            ip = os.popen("ifconfig en0 | grep 'inet ' | awk '{print $2}'").read().strip()
+        try:
+            # Get operating system
+            system = platform.system().lower()
+            ip = ""
+            
+            if system == "darwin":  # macOS
+                ip = os.popen("ifconfig en0 | grep 'inet ' | awk '{print $2}'").read().strip()
+                if not ip:
+                    ip = os.popen("ifconfig en1 | grep 'inet ' | awk '{print $2}'").read().strip()
+            
+            elif system == "windows":
+                ip = os.popen("ipconfig | findstr /i \"IPv4\"").read()
+                ip = ip.split(": ")[-1].strip()
+            
+            elif system == "linux":
+                ip = os.popen("hostname -I | awk '{print $1}'").read().strip()
+            
+            if not ip:
+                raise Exception("No valid IP address found")
+                
             logger.info("Local IP determined: %s", ip)
             # Split IP and create broadcast
             ip_parts = ip.split('.')
