@@ -17,6 +17,7 @@ from file_sender import SendApp
 from file_sender_java import SendAppJava
 from file_sender_swift import SendAppSwift
 import os
+import time
 
 class CircularDeviceButton(QWidget):
     def __init__(self, device_name, device_ip, parent=None):
@@ -141,16 +142,22 @@ class BroadcastWorker(QThread):
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             
             # Bind to LISTEN_PORT to receive responses
-            s.bind(('',LISTEN_PORT))
-            logger.info("Sending discover packet to %s:%d", broadcast_address,BROADCAST_PORT)
+            s.bind(('', LISTEN_PORT))
+            logger.info("Sending discover packet to %s:%d", broadcast_address, BROADCAST_PORT)
+            
+            # Set timeout before sending discovery packet
+            s.settimeout(2.0)  # Explicit float value
+            
+            # Get current time for timeout tracking
+            start_time = time.time()
+            timeout_duration = 2.0  # 2 seconds timeout
             
             # Send discovery packet
-            s.sendto(b'DISCOVER', (broadcast_address,BROADCAST_PORT))
+            s.sendto(b'DISCOVER', (broadcast_address, BROADCAST_PORT))
             
-            # Listen for responses with timeout
-            s.settimeout(2)
-            try:
-                while True:
+            # Listen for responses until timeout
+            while (time.time() - start_time) < timeout_duration:
+                try:
                     message, address = s.recvfrom(1024)
                     message = message.decode()
                     logger.info("Received response from %s: %s", address[0], message)
@@ -161,10 +168,13 @@ class BroadcastWorker(QThread):
                         logger.info("Found device: %s", device_info)
                         self.device_detected.emit(device_info)
                         
-            except socket.timeout:
-                logger.info("Discovery timeout reached")
-            except Exception as e:
-                logger.error("Error during discovery: %s", str(e))
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    logger.error("Error during discovery: %s", str(e))
+                    break
+            
+            logger.info("Discovery completed after %0.2f seconds", time.time() - start_time)
 
     def connect_to_device(self, device_ip, device_name):
         try:
