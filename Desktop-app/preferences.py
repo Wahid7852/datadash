@@ -2,10 +2,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFileDialog, QCheckBox, QHBoxLayout, QMessageBox, QApplication, QComboBox, QSizePolicy
 )
 from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence, QDesktopServices
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QThread, pyqtSignal
 import sys
 import platform
-from constant import ConfigManager  # Updated import - remove get_config, write_config, get_default_path
+from constant import ConfigManager
 from loges import logger
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 from credits_dialog import CreditsDialog
@@ -14,6 +14,12 @@ import os
 import time
 from PyQt6.QtWidgets import QProgressDialog
 from subprocess import run
+
+class VersionUpdater(QThread):
+    def __init__(self):
+        super().__init__()
+        self.uga_version = None
+        self.config_manager = ConfigManager()
 
 class PreferencesApp(QWidget):
     def __init__(self):
@@ -24,7 +30,7 @@ class PreferencesApp(QWidget):
         self.config_manager.start()
         self.original_preferences = {}
         self.initUI()
-        self.setFixedSize(525, 600)  # Make the window smaller
+        self.setFixedSize(525, 600)
 
     def on_config_updated(self, config):
         self.current_config = config
@@ -35,42 +41,38 @@ class PreferencesApp(QWidget):
         self.set_background()
         self.displayversion()
 
-        # Adjust main layout margins and spacing
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
 
-        # Top layout as a vertical layout
         top_layout = QVBoxLayout()
         top_layout.setSpacing(10)
 
-        # Version label and Check for Update button side by side
         version_update_layout = QHBoxLayout()
         version_update_layout.setSpacing(5)
 
         self.version_label = QLabel('Version: ' + self.uga_version)
         self.version_label.setFont(QFont("Arial", 14))
         self.style_label(self.version_label)
-        self.version_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)  # Allow label to expand
+        self.version_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         version_update_layout.addWidget(self.version_label)
 
         self.update_button = QPushButton('Check for Update', self)
         self.update_button.setFont(QFont("Arial", 10))
-        self.update_button.setFixedSize(130, 30)  # Adjust button width if needed
+        self.update_button.setFixedSize(130, 30)
         self.style_update_button(self.update_button)
         self.update_button.clicked.connect(self.fetch_platform_value)
         version_update_layout.addWidget(self.update_button)
 
         top_layout.addLayout(version_update_layout)
 
-        # Update Channel label and dropdown side by side
         channel_layout = QHBoxLayout()
         channel_layout.setSpacing(5)
 
         self.channel_label = QLabel('Update Channel:')
         self.channel_label.setFont(QFont("Arial", 14))
         self.style_label(self.channel_label)
-        self.channel_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)  # Allow label to expand
+        self.channel_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed) 
         channel_layout.addWidget(self.channel_label)
 
         self.channel_dropdown = QComboBox()
@@ -89,7 +91,6 @@ class PreferencesApp(QWidget):
         self.style_label(self.device_name_label)
         layout.addWidget(self.device_name_label)
 
-        # Horizontal layout for device name input and reset button
         device_name_layout = QHBoxLayout()
         device_name_layout.setSpacing(10)
 
@@ -109,7 +110,6 @@ class PreferencesApp(QWidget):
 
         layout.addLayout(device_name_layout)
 
-        # Save to Path
         self.save_to_path_label = QLabel('Save to Path:', self)
         self.save_to_path_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         self.style_label(self.save_to_path_label)
@@ -140,33 +140,28 @@ class PreferencesApp(QWidget):
 
         layout.addLayout(path_layout)
 
-        # Encryption Toggle
         self.encryption_toggle = QCheckBox('Encryption', self)
         self.encryption_toggle.setFont(QFont("Arial", 18))
         self.style_checkbox(self.encryption_toggle)
         layout.addWidget(self.encryption_toggle)
 
-        # Show Warning Toggle
         self.show_warning_toggle = QCheckBox('Show Warnings', self)
         self.show_warning_toggle.setFont(QFont("Arial", 18))
         self.style_checkbox(self.show_warning_toggle)
         layout.addWidget(self.show_warning_toggle)
 
-        # Show Warning Toggle
         self.show_update_toggle = QCheckBox('Auto-check for updates during app launch', self)
         self.show_update_toggle.setFont(QFont("Arial", 18))
         self.style_checkbox(self.show_update_toggle)
         layout.addWidget(self.show_update_toggle)
 
-        # Adjust the Credits button below the auto-update toggle
         self.credit_button = QPushButton('Credits', self)
         self.credit_button.setFont(QFont("Arial", 12))
-        self.credit_button.setFixedSize(65, 35)  # Revert to smaller size
-        self.style_credit_button(self.credit_button)  # Use specific styling method
+        self.credit_button.setFixedSize(65, 35)
+        self.style_credit_button(self.credit_button)
         self.credit_button.clicked.connect(self.show_credits)
         layout.addWidget(self.credit_button)
 
-        # Submit and Main Menu buttons
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(10)
 
@@ -177,7 +172,6 @@ class PreferencesApp(QWidget):
         self.style_button(self.main_menu_button)
         buttons_layout.addWidget(self.main_menu_button)
 
-        # Credits Button
         self.help_button = QPushButton('Help')
         self.help_button.setFont(QFont("Arial", 12))
         self.style_button(self.help_button)
@@ -196,7 +190,7 @@ class PreferencesApp(QWidget):
     def style_label(self, label):
         label.setStyleSheet("""
             color: #FFFFFF;
-            background-color: transparent;  /* Set the background to transparent */
+            background-color: transparent;
         """)
 
     def style_input(self, input_field):
@@ -209,14 +203,14 @@ class PreferencesApp(QWidget):
                 padding: 5px;
             }
             QLineEdit:focus {
-                border: 2px solid #333333;  /* Dark grey border on focus */
-                background-color: rgba(255, 255, 255, 0.1); /* Slightly opaque background on focus */
+                border: 2px solid #333333;
+                background-color: rgba(255, 255, 255, 0.1);
             }
         """)
 
     def style_checkbox(self, checkbox):
         tick = os.path.join(os.path.dirname(__file__), "icons", "tick.svg")
-        tick = tick.replace('\\', '/')  # Convert backslashes to forward slashes for CSS
+        tick = tick.replace('\\', '/')
         checkbox.setGraphicsEffect(self.create_glow_effect())
         checkbox.setStyleSheet(f"""
             QCheckBox {{
@@ -427,7 +421,7 @@ class PreferencesApp(QWidget):
         self.max_filesize = config["max_filesize"]
         self.encryption_toggle.setChecked(config["encryption"])
         self.swift_encryption = (config["swift_encryption"])
-        self.show_warning_toggle.setChecked(config["show_warning"])  # Load show_warning value
+        self.show_warning_toggle.setChecked(config["show_warning"])
         self.show_update_toggle.setChecked(config["check_update"])
         self.update_channel = config["update_channel"]
         channel_index = 0 if config["update_channel"] == "stable" else 1
@@ -442,7 +436,7 @@ class PreferencesApp(QWidget):
         device_name = self.device_name_input.text()
         save_to_path = self.save_to_path_input.text()
         encryption = self.encryption_toggle.isChecked()
-        show_warning = self.show_warning_toggle.isChecked()  # Get show_warning toggle state
+        show_warning = self.show_warning_toggle.isChecked()
         check_update = self.show_update_toggle.isChecked()
 
         if not device_name:
@@ -452,7 +446,6 @@ class PreferencesApp(QWidget):
             msg_box.setIcon(QMessageBox.Icon.Critical)
             msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
 
-            # Apply custom style with gradient background
             msg_box.setStyleSheet("""
                 QMessageBox {
                     background: qlineargradient(
@@ -496,11 +489,9 @@ class PreferencesApp(QWidget):
             msg_box.exec()
             return
 
-        # Create a dictionary of only the changed values
         changed_preferences = {}
-        current_config = self.config_manager.get_config()  # Get current config
+        current_config = self.config_manager.get_config()
 
-        # Compare each field with original preferences and only include changed ones
         if device_name != self.original_preferences["device_name"]:
             changed_preferences["device_name"] = device_name
         
@@ -516,12 +507,9 @@ class PreferencesApp(QWidget):
         if check_update != self.original_preferences["check_update"]:
             changed_preferences["check_update"] = check_update
 
-        # If there are any changes, update the config
         if changed_preferences:
-            # Update only changed fields in current config
             current_config.update(changed_preferences)
             self.config_manager.write_config(current_config)
-            # Update original preferences with new values
             self.original_preferences.update(changed_preferences)
 
             msg_box = QMessageBox(self)
@@ -530,7 +518,6 @@ class PreferencesApp(QWidget):
             msg_box.setIcon(QMessageBox.Icon.Information)
             msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
 
-            # Apply custom style with gradient background and transparent text area
             msg_box.setStyleSheet("""
                 QMessageBox {
                     background: qlineargradient(
@@ -574,7 +561,6 @@ class PreferencesApp(QWidget):
             msg_box.exec()
             self.go_to_main_menu()
         else:
-            # If no changes were made, just go back to main menu
             self.go_to_main_menu()
 
     def goToMainMenu(self):
@@ -585,7 +571,6 @@ class PreferencesApp(QWidget):
             msg_box.setIcon(QMessageBox.Icon.Question)
             msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
 
-            # Apply custom style with gradient background
             msg_box.setStyleSheet("""
                 QMessageBox {
                     background: qlineargradient(
@@ -597,7 +582,7 @@ class PreferencesApp(QWidget):
                     font-size: 16px;
                 }
                 QLabel {
-                    background-color: transparent; /* Make the label background transparent */
+                    background-color: transparent;
                     font-size: 16px;
                 }
                 QPushButton {
@@ -645,7 +630,7 @@ class PreferencesApp(QWidget):
 
     def center_window(self):
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
-        window_width, window_height = 525, 600  # Updated to 16:9 ratio
+        window_width, window_height = 525, 600
         x = (screen.width() - window_width) // 2
         y = (screen.height() - window_height) // 2
         self.setGeometry(x, y, window_width, window_height)
@@ -662,7 +647,6 @@ class PreferencesApp(QWidget):
             "check_update": self.show_update_toggle.isChecked()
         }
         
-        # Create comparison dict without update_channel
         original_without_channel = self.original_preferences.copy()
         original_without_channel.pop("update_channel", None)
         
@@ -699,7 +683,6 @@ class PreferencesApp(QWidget):
         """)
         help_dialog.setIcon(QMessageBox.Icon.Information)
 
-        # Apply consistent styling with a gradient background and transparent text area
         help_dialog.setStyleSheet("""
             QMessageBox {
                 background: qlineargradient(
@@ -798,7 +781,7 @@ class PreferencesApp(QWidget):
                         font-size: 16px;
                     }
                     QLabel {
-                        background-color: transparent; /* Make the label background transparent */
+                        background-color: transparent; 
                     }
                     QPushButton {
                         background: qlineargradient(
@@ -847,7 +830,6 @@ class PreferencesApp(QWidget):
             msg_box.setIcon(QMessageBox.Icon.Critical)
             msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
 
-            # Apply custom style with gradient background and transparent text area
             msg_box.setStyleSheet("""
                 QMessageBox {
                     background: qlineargradient(
@@ -893,8 +875,7 @@ class PreferencesApp(QWidget):
     def compare_versions(self, v1, v2):
         v1_parts = [int(part) for part in v1.split('.')]
         v2_parts = [int(part) for part in v2.split('.')]
-        
-        # Pad the shorter version with zeros
+
         while len(v1_parts) < 4:
             v1_parts.append(0)
         while len(v2_parts) < 4:
@@ -915,11 +896,6 @@ class PreferencesApp(QWidget):
                 logger.error("Unsupported OS!")
                 return None
 
-        # for testing use the following line and comment the above lines, auga=older version, buga=newer version and cuga=latest version
-        # platform_name = 'auga'
-        # platform_name = 'buga'
-        # platform_name = 'cuga'
-
         if channel == "stable":
             url = f"https://datadashshare.vercel.app/api/platformNumber?platform=python_{platform_name}"
             
@@ -930,7 +906,6 @@ class PreferencesApp(QWidget):
     def get_update_download(self):
         channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Checking for updates in channel: {channel}")
-        # Determine platform OS and download path
         if platform.system() == 'Windows':
             platform_os = 'windows'
             possible_paths = [
@@ -955,7 +930,6 @@ class PreferencesApp(QWidget):
             logger.error("Unsupported OS!")
             return None
 
-        # Determine platform type
         machine = platform.machine().lower()
         if machine in ['arm64', 'aarch64']:
             platform_type = 'arm'
@@ -965,10 +939,7 @@ class PreferencesApp(QWidget):
             logger.error("Unsupported platform type!")
             return None
 
-        # Map platform combinations to download links
-
         if channel == "stable":
-        #main version
             download_links = {
                 ('windows', 'x64'): 'https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(windows%20x64).exe',
                 ('windows', 'arm'): 'https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(windows%20arm).exe',
@@ -979,7 +950,6 @@ class PreferencesApp(QWidget):
             }
 
         elif channel == "beta":
-        #beta version
             download_links = {
                 ('windows', 'x64'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20x64).exe',
                 ('windows', 'arm'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20arm).exe',
@@ -996,7 +966,6 @@ class PreferencesApp(QWidget):
             logger.error("Unsupported OS or architecture!")
             return None
 
-        # Fetch the latest version number
         url = self.get_platform_link()
         logger.info(f"Fetching latest version from: {url}")
         try:
@@ -1013,16 +982,14 @@ class PreferencesApp(QWidget):
             logger.error(f"Error fetching latest version: {e}")
             return
 
-        # Modify the filename to include the version number
         filename = f"datadash_v{latest_version}_{channel}{file_extension}"
         file_path = os.path.join(download_path, filename)
 
-        # Download the file into the download folder
         try:
             response = requests.get(download_link, stream=True)
             response.raise_for_status()
             total_size = int(response.headers.get('content-length', 0))
-            block_size = 8192  # 8 KB
+            block_size = 8192
             progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, total_size, self)
             progress_dialog.setWindowTitle("Download Progress")
             progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
@@ -1037,7 +1004,7 @@ class PreferencesApp(QWidget):
                     font-size: 16px;
                 }
                 QLabel {
-                    background-color: transparent; /* Make the label background transparent */
+                    background-color: transparent; 
                     color: #FFFFFF;
                     font-size: 16px;
                 }
@@ -1102,7 +1069,7 @@ class PreferencesApp(QWidget):
                                 font-size: 16px;
                             }
                             QLabel {
-                                background-color: transparent; /* Make the label background transparent */
+                                background-color: transparent; 
                             }
                             QPushButton {
                                 background: qlineargradient(
@@ -1140,23 +1107,17 @@ class PreferencesApp(QWidget):
                     downloaded_size += len(data)
                     elapsed_time = time.time() - start_time
                     if elapsed_time > 0:
-                        # Calculate speed in KB/s
                         speed_kbps = (downloaded_size / 1024) / elapsed_time
-                        # Convert speed to MB/s with up to 3 decimal places
                         speed_mbps = round(speed_kbps / 1024, 1)
-                        # Calculate estimated time remaining in seconds
                         estimated_total_time = (total_size / downloaded_size) * elapsed_time
                         time_remaining = estimated_total_time - elapsed_time
-                        # Format time remaining into minutes and seconds
                         mins, secs = divmod(time_remaining, 60)
                         time_format = f"{int(mins)} min {int(secs)} sec" if mins >= 1 else f"{int(secs)} sec"
-                        # Update label with speed and estimated time remaining
                         progress_dialog.setLabelText(f"Downloading update... {speed_mbps} MB/s - {time_format} remaining")
                     progress_dialog.setValue(downloaded_size)
                     QApplication.processEvents()
             progress_dialog.close()
 
-            # Set chmod permission for linux
             if platform_os == "linux":
                 run(['chmod', '+x', file_path])
 
@@ -1176,7 +1137,7 @@ class PreferencesApp(QWidget):
                     font-size: 16px;
                 }
                 QLabel {
-                    background-color: transparent; /* Make the label background transparent */
+                    background-color: transparent; 
                 }
                 QPushButton {
                     background: qlineargradient(
@@ -1224,7 +1185,7 @@ class PreferencesApp(QWidget):
                     font-size: 16px;
                 }
                 QLabel {
-                    background-color: transparent; /* Make the label background transparent */
+                    background-color: transparent;
                 }
                 QPushButton {
                     background: qlineargradient(
