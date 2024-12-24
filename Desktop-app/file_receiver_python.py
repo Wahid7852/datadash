@@ -588,7 +588,36 @@ class ReceiveAppP(QWidget):
                     os.startfile(receiving_dir)
 
                 elif current_os == 'Linux':
-                    subprocess.Popen(["xdg-open", receiving_dir])
+                    file_managers = [
+                        ["nautilus", receiving_dir],
+                        ["dolphin", receiving_dir],
+                        ["thunar", receiving_dir],
+                        ["pcmanfm", receiving_dir],
+                        ["krusader", receiving_dir],
+                        ["mc", receiving_dir],
+                        ["nemo", receiving_dir],
+                        ["dbus-send", "--print-reply", "--dest=org.freedesktop.FileManager1",
+                         "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowFolders",
+                         "array:string:" + receiving_dir, "string:"],
+                        ["xdg-open", receiving_dir]
+                    ]
+
+                    success = False
+                    for cmd in file_managers:
+                        try:
+                            subprocess.run(cmd, timeout=3, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                            success = True
+                            break
+                        except subprocess.TimeoutExpired:
+                            continue
+                        except FileNotFoundError:
+                            continue
+                        except Exception as e:
+                            logger.debug(f"Failed to open with {cmd[0]}: {str(e)}")
+                            continue
+
+                    if not success:
+                        raise Exception("No suitable file manager found")
 
                 elif current_os == 'Darwin':  # macOS
                     subprocess.Popen(["open", receiving_dir])
@@ -597,7 +626,7 @@ class ReceiveAppP(QWidget):
                     raise NotImplementedError(f"Unsupported OS: {current_os}")
 
             except FileNotFoundError as fnfe:
-                logger.error("No file manager or terminal emulator found on Linux: %s", fnfe)
+                logger.error("No file manager found: %s", fnfe)
             except Exception as e:
                 logger.error("Failed to open directory: %s", str(e))
         else:
