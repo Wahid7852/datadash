@@ -911,8 +911,44 @@ class PreferencesApp(QWidget):
         return url
     
     def get_update_download(self):
+        download_info = self.prepare_download_info()
+        if not download_info:
+            return None
+        
+        return self.perform_download(download_info)
+
+    def prepare_download_info(self):
         channel = self.config_manager.get_config()["update_channel"]
         logger.info(f"Checking for updates in channel: {channel}")
+        
+        # Get platform info
+        platform_info = self.get_platform_info()
+        if not platform_info:
+            return None
+        
+        platform_os, platform_type, download_path, file_extension = platform_info
+        
+        # Get download link
+        download_link = self.get_download_link(channel, platform_os, platform_type)
+        if not download_link:
+            return None
+        
+        # Get latest version
+        latest_version = self.get_latest_version()
+        if not latest_version:
+            return None
+            
+        filename = f"datadash_v{latest_version}_{channel}{file_extension}"
+        file_path = os.path.join(download_path, filename)
+        
+        return {
+            'download_link': download_link,
+            'file_path': file_path,
+            'platform_os': platform_os,
+            'filename': filename
+        }
+
+    def get_platform_info(self):
         if platform.system() == 'Windows':
             platform_os = 'windows'
             possible_paths = [
@@ -945,7 +981,10 @@ class PreferencesApp(QWidget):
         else:
             logger.error("Unsupported platform type!")
             return None
+            
+        return platform_os, platform_type, download_path, file_extension
 
+    def get_download_link(self, channel, platform_os, platform_type):
         if channel == "stable":
             download_links = {
                 ('windows', 'x64'): 'https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(windows%20x64).exe',
@@ -955,8 +994,7 @@ class PreferencesApp(QWidget):
                 ('macos', 'x64'): 'https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(macos%20x64).dmg',
                 ('macos', 'arm'): 'https://github.com/Project-Bois/DataDash-files/raw/refs/heads/main/DataDash(macos%20arm).dmg',
             }
-
-        elif channel == "beta":
+        else:  # beta
             download_links = {
                 ('windows', 'x64'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20x64).exe',
                 ('windows', 'arm'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(windows%20arm).exe',
@@ -966,13 +1004,9 @@ class PreferencesApp(QWidget):
                 ('macos', 'arm'): 'https://github.com/Project-Bois/data-dash-test-files/raw/refs/heads/main/DataDash(macos%20arm).dmg',
             }
 
-        key = (platform_os, platform_type)
-        download_link = download_links.get(key)
+        return download_links.get((platform_os, platform_type))
 
-        if not download_link:
-            logger.error("Unsupported OS or architecture!")
-            return None
-
+    def get_latest_version(self):
         url = self.get_platform_link()
         logger.info(f"Fetching latest version from: {url}")
         try:
@@ -982,249 +1016,173 @@ class PreferencesApp(QWidget):
             if "value" in data:
                 latest_version = data["value"]
                 logger.info(f"Latest version: {latest_version}")
-            else:
-                logger.error("Version info not found in response.")
-                return
+                return latest_version
+            logger.error("Version info not found in response.")
+            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching latest version: {e}")
-            return
-
-        filename = f"datadash_v{latest_version}_{channel}{file_extension}"
-        file_path = os.path.join(download_path, filename)
-
-        try:
-            response = requests.get(download_link, stream=True)
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length', 0))
-            block_size = 8192
-            progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, total_size, self)
-            progress_dialog.setWindowTitle("Download Progress")
-            progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-            progress_dialog.setStyleSheet("""
-                QProgressDialog {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #b0b0b0,
-                        stop: 1 #505050
-                    );
-                    color: #FFFFFF;
-                    font-size: 16px;
-                }
-                QLabel {
-                    background-color: transparent; 
-                    color: #FFFFFF;
-                    font-size: 16px;
-                }
-                QProgressBar {
-                    border: 1px solid #444;
-                    border-radius: 5px;
-                    text-align: center;
-                    background-color: #222;
-                    color: #FFFFFF;
-                    font-size: 14px;
-                }
-                QProgressBar::chunk {
-                    background-color: #3add36;
-                    width: 20px;
-                }
-                QPushButton {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(47, 54, 66, 255),
-                        stop: 1 rgba(75, 85, 98, 255)
-                    );
-                    color: white;
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 0.5);
-                    padding: 4px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(60, 68, 80, 255),
-                        stop: 1 rgba(90, 100, 118, 255)
-                    );
-                }
-                QPushButton:pressed {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(35, 41, 51, 255),
-                        stop: 1 rgba(65, 75, 88, 255)
-                    );
-                }
-            """)
-            progress_dialog.show()
-            downloaded_size = 0
-            start_time = time.time()
-            with open(file_path, 'wb') as f:
-                for data in response.iter_content(block_size):
-                    if progress_dialog.wasCanceled():
-                        msg_box = QMessageBox(self)
-                        msg_box.setWindowTitle("Download Canceled")
-                        msg_box.setText("Download canceled by user.")
-                        msg_box.setIcon(QMessageBox.Icon.Information)
-                        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-                        msg_box.setStyleSheet("""
-                            QMessageBox {
-                                background: qlineargradient(
-                                    x1: 0, y1: 0, x2: 1, y2: 1,
-                                    stop: 0 #b0b0b0,
-                                    stop: 1 #505050
-                                );
-                                color: #FFFFFF;
-                                font-size: 16px;
-                            }
-                            QLabel {
-                                background-color: transparent; 
-                            }
-                            QPushButton {
-                                background: qlineargradient(
-                                    x1: 0, y1: 0, x2: 1, y2: 0,
-                                    stop: 0 rgba(47, 54, 66, 255),
-                                    stop: 1 rgba(75, 85, 98, 255)
-                                );
-                                color: white;
-                                border-radius: 10px;
-                                border: 1px solid rgba(0, 0, 0, 0.5);
-                                padding: 4px;
-                                font-size: 16px;
-                            }
-                            QPushButton:hover {
-                                background: qlineargradient(
-                                    x1: 0, y1: 0, x2: 1, y2: 0,
-                                    stop: 0 rgba(60, 68, 80, 255),
-                                    stop: 1 rgba(90, 100, 118, 255)
-                                );
-                            }
-                            QPushButton:pressed {
-                                background: qlineargradient(
-                                    x1: 0, y1: 0, x2: 1, y2: 0,
-                                    stop: 0 rgba(35, 41, 51, 255),
-                                    stop: 1 rgba(65, 75, 88, 255)
-                                );
-                            }
-                        """)
-                        msg_box.exec()
-                        logger.info("Download canceled by user")
-                        f.close()
-                        os.remove(file_path)
-                        return None
-                    f.write(data)
-                    downloaded_size += len(data)
-                    elapsed_time = time.time() - start_time
-                    if elapsed_time > 0:
-                        speed_kbps = (downloaded_size / 1024) / elapsed_time
-                        speed_mbps = round(speed_kbps / 1024, 1)
-                        estimated_total_time = (total_size / downloaded_size) * elapsed_time
-                        time_remaining = estimated_total_time - elapsed_time
-                        mins, secs = divmod(time_remaining, 60)
-                        time_format = f"{int(mins)} min {int(secs)} sec" if mins >= 1 else f"{int(secs)} sec"
-                        progress_dialog.setLabelText(f"Downloading update... {speed_mbps} MB/s - {time_format} remaining")
-                    progress_dialog.setValue(downloaded_size)
-                    QApplication.processEvents()
-            progress_dialog.close()
-
-            if platform_os == "linux":
-                run(['chmod', '+x', file_path])
-
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Download Complete")
-            msg_box.setText(f"File downloaded to {file_path}")
-            msg_box.setIcon(QMessageBox.Icon.Information)
-            msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            msg_box.setStyleSheet("""
-                QMessageBox {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #b0b0b0,
-                        stop: 1 #505050
-                    );
-                    color: #FFFFFF;
-                    font-size: 16px;
-                }
-                QLabel {
-                    background-color: transparent; 
-                }
-                QPushButton {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(47, 54, 66, 255),
-                        stop: 1 rgba(75, 85, 98, 255)
-                    );
-                    color: white;
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 0.5);
-                    padding: 4px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(60, 68, 80, 255),
-                        stop: 1 rgba(90, 100, 118, 255)
-                    );
-                }
-                QPushButton:pressed {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(35, 41, 51, 255),
-                        stop: 1 rgba(65, 75, 88, 255)
-                    );
-                }
-            """)
-            msg_box.exec()
-        except Exception as e:
-            logger.error(f"Failed to download file: {e}")
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Download Failed")
-            msg_box.setText("Failed to download the update.")
-            msg_box.setIcon(QMessageBox.Icon.Critical)
-            msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            msg_box.setStyleSheet("""
-                QMessageBox {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #b0b0b0,
-                        stop: 1 #505050
-                    );
-                    color: #FFFFFF;
-                    font-size: 16px;
-                }
-                QLabel {
-                    background-color: transparent;
-                }
-                QPushButton {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(47, 54, 66, 255),
-                        stop: 1 rgba(75, 85, 98, 255)
-                    );
-                    color: white;
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 0.5);
-                    padding: 4px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(60, 68, 80, 255),
-                        stop: 1 rgba(90, 100, 118, 255)
-                    );
-                }
-                QPushButton:pressed {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(35, 41, 51, 255),
-                        stop: 1 rgba(65, 75, 88, 255)
-                    );
-                }
-            """)
-            msg_box.exec()
             return None
 
-        return file_path
+    def perform_download(self, download_info):
+        try:
+            response = requests.get(download_info['download_link'], stream=True)
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            
+            progress_dialog = self.create_progress_dialog(total_size)
+            progress_dialog.show()
+            
+            if self.download_file(response, download_info['file_path'], total_size, progress_dialog):
+                progress_dialog.close()
+                
+                if download_info['platform_os'] == "linux":
+                    run(['chmod', '+x', download_info['file_path']])
+                
+                self.show_download_success_dialog(download_info['file_path'])
+                return download_info['file_path']
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to download file: {e}")
+            self.show_download_error_dialog()
+            return None
+
+    def download_file(self, response, file_path, total_size, progress_dialog):
+        block_size = 8192
+        downloaded_size = 0
+        start_time = time.time()
+        
+        with open(file_path, 'wb') as f:
+            for data in response.iter_content(block_size):
+                if progress_dialog.wasCanceled():
+                    self.show_download_canceled_dialog()
+                    f.close()
+                    os.remove(file_path)
+                    return False
+                    
+                f.write(data)
+                downloaded_size += len(data)
+                self.update_progress_dialog(progress_dialog, downloaded_size, total_size, start_time)
+                QApplication.processEvents()
+                
+        return True
+
+    def update_progress_dialog(self, progress_dialog, downloaded_size, total_size, start_time):
+        elapsed_time = time.time() - start_time
+        if elapsed_time > 0:
+            speed_kbps = (downloaded_size / 1024) / elapsed_time
+            speed_mbps = round(speed_kbps / 1024, 1)
+            estimated_total_time = (total_size / downloaded_size) * elapsed_time
+            time_remaining = estimated_total_time - elapsed_time
+            mins, secs = divmod(time_remaining, 60)
+            time_format = f"{int(mins)} min {int(secs)} sec" if mins >= 1 else f"{int(secs)} sec"
+            progress_dialog.setLabelText(f"Downloading update... {speed_mbps} MB/s - {time_format} remaining")
+        progress_dialog.setValue(downloaded_size)
+
+    def create_progress_dialog(self, total_size):
+        progress_dialog = QProgressDialog("Downloading update...", "Cancel", 0, total_size, self)
+        progress_dialog.setWindowTitle("Download Progress")
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setStyleSheet("""
+            QProgressDialog {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #b0b0b0,
+                    stop: 1 #505050
+                );
+                color: #FFFFFF;
+                font-size: 16px;
+            }
+            QLabel {
+                background-color: transparent; 
+                color: #FFFFFF;
+                font-size: 16px;
+            }
+            QProgressBar {
+                border: 1px solid #444;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #222;
+                color: #FFFFFF;
+                font-size: 14px;
+            }
+            QProgressBar::chunk {
+                background-color: #3add36;
+                width: 20px;
+            }
+            QPushButton {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(47, 54, 66, 255),
+                    stop: 1 rgba(75, 85, 98, 255)
+                );
+                color: white;
+                border-radius: 10px;
+                border: 1px solid rgba(0, 0, 0, 0.5);
+                padding: 4px;
+                font-size: 16px;
+            }
+        """)
+        return progress_dialog
+
+    def show_download_success_dialog(self, file_path):
+        self.show_message_dialog(
+            "Download Complete",
+            f"File downloaded to {file_path}",
+            QMessageBox.Icon.Information
+        )
+
+    def show_download_error_dialog(self):
+        self.show_message_dialog(
+            "Download Failed",
+            "Failed to download the update.",
+            QMessageBox.Icon.Critical
+        )
+
+    def show_download_canceled_dialog(self):
+        self.show_message_dialog(
+            "Download Canceled",
+            "Download canceled by user.",
+            QMessageBox.Icon.Information
+        )
+
+    def show_message_dialog(self, title, message, icon):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(icon)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.setStyleSheet(self.get_message_box_style())
+        msg_box.exec()
+
+    def get_message_box_style(self):
+        return """
+            QMessageBox {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #b0b0b0,
+                    stop: 1 #505050
+                );
+                color: #FFFFFF;
+                font-size: 16px;
+            }
+            QLabel {
+                background-color: transparent; 
+            }
+            QPushButton {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 rgba(47, 54, 66, 255),
+                    stop: 1 rgba(75, 85, 98, 255)
+                );
+                color: white;
+                border-radius: 10px;
+                border: 1px solid rgba(0, 0, 0, 0.5);
+                padding: 4px;
+                font-size: 16px;
+            }
+        """
         
     def update_channel_preference(self, index):
         channel = "stable" if index == 0 else "beta"
