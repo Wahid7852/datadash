@@ -590,7 +590,7 @@ class ReceiveAppP(QWidget):
                 elif current_os == 'Linux':
                     file_managers = [
                         ["xdg-open", receiving_dir],
-                        ["xdg-mime", "query", "default", "inode/directory"],
+                        ["xdg-mime", "open", receiving_dir],
                         ["dbus-send", "--print-reply", "--dest=org.freedesktop.FileManager1",
                          "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowFolders",
                          "array:string:" + receiving_dir, "string:"],
@@ -632,6 +632,7 @@ class ReceiveAppP(QWidget):
                     for cmd in file_managers:
                         try:
                             subprocess.run(cmd, timeout=3, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                            logger.info(f"Successfully opened directory with {cmd[0]}")
                             success = True
                             break
                         except subprocess.TimeoutExpired:
