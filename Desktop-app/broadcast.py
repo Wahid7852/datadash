@@ -17,6 +17,7 @@ from file_sender import SendApp
 from file_sender_java import SendAppJava
 from file_sender_swift import SendAppSwift
 import netifaces
+import os
 
 class CircularDeviceButton(QWidget):
     def __init__(self, device_name, device_ip, parent=None):
@@ -98,34 +99,16 @@ class BroadcastWorker(QThread):
         self.discover_receivers()
 
     def get_broadcast(self):
-        try:
-            # Get all network interfaces
-            for interface in netifaces.interfaces():
-                # Skip loopback interface
-                if interface.startswith('lo'):
-                    continue
-                    
-                addrs = netifaces.ifaddresses(interface)
-                
-                # Check for IPv4 addresses
-                if netifaces.AF_INET in addrs:
-                    for addr in addrs[netifaces.AF_INET]:
-                        ip = addr['addr']
-                        # Check for private IP ranges only
-                        if (ip.startswith('192.168.') or 
-                            ip.startswith('10.') or 
-                            (ip.startswith('172.') and 16 <= int(ip.split('.')[1]) <= 31)):
-                            
-                            logger.info("Local IP determined: %s", ip)
-                            # Split IP and create broadcast
-                            ip_parts = ip.split('.')
-                            ip_parts[-1] = '255'
-                            broadcast_address = '.'.join(ip_parts)
-                            logger.info("Broadcast address determined: %s", broadcast_address)
-                            return broadcast_address
-
-            logger.error("No valid private network interface found")
-            return "Unable to get IP"
+        try:       
+        # Check for private IP ranges only
+            ip = os.popen("ifconfig en0 | grep 'inet ' | awk '{print $2}'").read().strip()
+            logger.info("Local IP determined: %s", ip)
+            # Split IP and create broadcast
+            ip_parts = ip.split('.')
+            ip_parts[-1] = '255'
+            broadcast_address = '.'.join(ip_parts)
+            logger.info("Broadcast address determined: %s", broadcast_address)
+            return broadcast_address
                             
         except Exception as e:
             logger.error("Error obtaining local IP: %s", e)
