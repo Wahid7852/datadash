@@ -20,7 +20,7 @@ class UpdateManager(QThread):
     download_progress = pyqtSignal(int, int, float, float)  # downloaded, total, speed, time_remaining
     download_complete = pyqtSignal(str, bool, str)  # message, success, file_path
     
-    def __init__(self, config_manager):
+    def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
         self.should_cancel = False
@@ -259,7 +259,7 @@ class PreferencesApp(QWidget):
     def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
-        self.update_manager = UpdateManager(self.config_manager)
+        self.update_manager = UpdateManager()
         self.setup_update_manager_signals()
         self.config_manager.config_updated.connect(self.on_config_updated)
         self.config_manager.log_message.connect(logger.info)
