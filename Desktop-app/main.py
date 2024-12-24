@@ -101,36 +101,48 @@ class NetworkCheck(QThread):
 
     def check_network_type_windows(self):
         try:
+            # Modified PowerShell command to output in a more reliable format
             cmd = '''
-            Get-NetAdapter | 
+            $result = Get-NetAdapter | 
             Where-Object { $_.Status -eq 'Up' } | 
             ForEach-Object { 
                 $adapter = $_
-                Get-NetConnectionProfile -InterfaceIndex $adapter.ifIndex | 
-                Select-Object @{Name='Name';Expression={$adapter.Name}}, 
-                            @{Name='Type';Expression={$adapter.MediaType}}, 
-                            NetworkCategory 
-            } | ConvertTo-Json
+                $profile = Get-NetConnectionProfile -InterfaceIndex $adapter.ifIndex
+                [PSCustomObject]@{
+                    Name = $adapter.Name
+                    Type = $adapter.MediaType
+                    NetworkCategory = $profile.NetworkCategory.ToString()
+                }
+            }
+            if ($result) {
+                ConvertTo-Json -InputObject $result -Compress
+            }
             '''
+            
             result = subprocess.run(['powershell', '-Command', cmd], 
                                  capture_output=True, text=True)
             
-            if result.returncode == 0:
-                network_data = json.loads(result.stdout)
-                # Handle both single and multiple network adapters
-                if not isinstance(network_data, list):
-                    network_data = [network_data]
-                
-                # Check all active network adapters
-                for network in network_data:
-                    if network.get('NetworkCategory') == 'Public':
-                        logger.warning(f"Connected to a Public network on interface: {network.get('Name')} ({network.get('Type')})")
-                        return 'Public'
-                
-                logger.info("All network connections are Private")
-                return 'Private'
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    network_data = json.loads(result.stdout)
+                    # Handle both single and multiple network adapters
+                    if not isinstance(network_data, list):
+                        network_data = [network_data]
+                    
+                    # Check all active network adapters
+                    for network in network_data:
+                        logger.info(f"Network interface: {network.get('Name')} - Category: {network.get('NetworkCategory')}")
+                        if network.get('NetworkCategory', '').lower() == 'public':
+                            logger.warning(f"Public network detected on interface: {network.get('Name')} ({network.get('Type')})")
+                            return 'Public'
+                    
+                    logger.info("All network connections are Private")
+                    return 'Private'
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON: {e}\nOutput: {result.stdout}")
+                    return None
             else:
-                logger.error("Failed to get network information")
+                logger.error(f"PowerShell command failed: {result.stderr}")
                 return None
                 
         except Exception as e:
@@ -147,7 +159,7 @@ class MainApp(QWidget):
         self.config_manager.start()
         self.skip_version_check = skip_version_check
         self.network_thread = NetworkCheck()
-        self.network_thread.start()
+        self.network_thread.start() #comment out after testing is over, lot of overhead on windows
 
     def on_config_ready(self):
         self.initUI(self.skip_version_check)
