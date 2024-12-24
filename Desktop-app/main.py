@@ -91,15 +91,15 @@ class VersionCheck(QThread):
         return url
 
 class NetworkCheck(QThread):
-    network_type = pyqtSignal(str)
+    # network_type = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
 
     def run(self):
         if platform.system() == 'Windows':
-            network_type = self.check_network_type_windows()
-            self.network_type.emit(network_type)
+            self.check_network_type_windows()
+            logger.info("Network check completed")
 
     def check_network_type_windows(self):
         try:
@@ -150,8 +150,6 @@ class MainApp(QWidget):
         self.config_manager.start()
         self.skip_version_check = skip_version_check
         self.network_thread = NetworkCheck()
-        self.network_thread.network_type.connect(self.on_network_type_received)
-        self.pending_operation = None
 
     def on_config_ready(self):
         self.initUI(self.skip_version_check)
@@ -180,8 +178,6 @@ class MainApp(QWidget):
         header.setStyleSheet("background-color: #333; padding: 0px;")
         header_layout = QHBoxLayout(header)
 
-        # Create and add the IconButton instead of using SvgButton
-        # Settings button
         settings_button = QPushButton()
         settings_button.setFixedSize(44, 44)
         settings_icon_path = os.path.join(os.path.dirname(__file__), "icons", "settings.svg")
@@ -209,24 +205,19 @@ class MainApp(QWidget):
 
         header_layout.addWidget(settings_button, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Add a stretch after the settings button
         header_layout.addStretch()
 
-        # Title label
         title_label = QLabel("DataDash: CrossPlatform Data Sharing")
         title_label.setFont(QFont("Arial", 20, QFont.Weight.Bold))
         title_label.setStyleSheet("color: white;")
         header_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Add another stretch after the title to balance the layout
         header_layout.addStretch()
 
         main_layout.addWidget(header)
 
-        # Reduce the vertical spacing before the GIF
-        main_layout.addSpacing(20)  # Decrease spacing from 105 to 50
+        main_layout.addSpacing(20)
 
-        # Wifi Animation Widget
         gif_label = QLabel()
         gif_label.setStyleSheet("background-color: transparent;")  # Add this line
         movie = QMovie(os.path.join(os.path.dirname(__file__), "assets", "wifi.gif"))
@@ -334,70 +325,8 @@ class MainApp(QWidget):
             os.makedirs(dest)
             logger.info("Created folder to receive files")
 
-        
-    def show_network_warning(self):
-        warning = QMessageBox(self)
-        warning.setWindowTitle("Network Security Warning")
-        warning.setText("You are connected to a Public network!\n\n"
-                       "For security reasons, this application should only be used on Private/Home networks.")
-        warning.setIcon(QMessageBox.Icon.Warning)
-        warning.setStandardButtons(QMessageBox.StandardButton.Ok)
-        warning.setStyleSheet("""
-                QMessageBox {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #b0b0b0,
-                        stop: 1 #505050
-                    );
-                    color: #FFFFFF;
-                    font-size: 16px;
-                }
-                QLabel {
-                    background-color: transparent;  /* Transparent text background */
-                    font-size: 16px;
-                }
-                QPushButton {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(47, 54, 66, 255),
-                        stop: 1 rgba(75, 85, 98, 255)
-                    );
-                    color: white;
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 0.5);
-                    padding: 4px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(60, 68, 80, 255),
-                        stop: 1 rgba(90, 100, 118, 255)
-                    );
-                }
-                QPushButton:pressed {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 0,
-                        stop: 0 rgba(35, 41, 51, 255),
-                        stop: 1 rgba(65, 75, 88, 255)
-                    );
-                }
-            """)
-        warning.exec()
-        sys.exit()
-
-    def on_network_type_received(self, network_type):
-        if network_type == 'Public':
-            self.show_network_warning()
-        else:
-            pass
 
     def sendFile(self):
-        if platform.system() == 'Windows':
-            self.network_thread.start()
-            return
-
-        # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
             send_dialog = QMessageBox(self)
             send_dialog.setWindowTitle("Note")
@@ -467,11 +396,6 @@ class MainApp(QWidget):
             self.broadcast_app.show()
 
     def receiveFile(self):
-        if platform.system() == 'Windows':
-            self.network_thread.start()
-            return
-
-        # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
             receive_dialog = QMessageBox(self)
             receive_dialog.setWindowTitle("Note")
