@@ -111,8 +111,11 @@ class BroadcastWorker(QThread):
                 if netifaces.AF_INET in addrs:
                     for addr in addrs[netifaces.AF_INET]:
                         ip = addr['addr']
-                        # Skip loopback addresses
-                        if not ip.startswith('127.'):
+                        # Check for private IP ranges only
+                        if (ip.startswith('192.168.') or 
+                            ip.startswith('10.') or 
+                            (ip.startswith('172.') and 16 <= int(ip.split('.')[1]) <= 31)):
+                            
                             logger.info("Local IP determined: %s", ip)
                             # Split IP and create broadcast
                             ip_parts = ip.split('.')
@@ -121,7 +124,7 @@ class BroadcastWorker(QThread):
                             logger.info("Broadcast address determined: %s", broadcast_address)
                             return broadcast_address
 
-            logger.error("No valid network interface found")
+            logger.error("No valid private network interface found")
             return "Unable to get IP"
                             
         except Exception as e:
@@ -130,7 +133,7 @@ class BroadcastWorker(QThread):
 
     def discover_receivers(self):
         broadcast_address = self.get_broadcast()
-        if broadcast_address == "Unable to get IP":
+        if (broadcast_address == "Unable to get IP"):
             return
             
         # Create new UDP socket

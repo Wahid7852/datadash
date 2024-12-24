@@ -359,11 +359,11 @@ class MainApp(QWidget):
         sys.exit()
 
     def sendFile(self):
-        if platform.system() == 'Windows':
-            network_type = self.check_network_type_windows()
-            if network_type == 'Public':
-                if not self.show_network_warning():
-                    return
+        # if platform.system() == 'Windows':
+        #     network_type = self.check_network_type_windows()
+        #     if network_type == 'Public':
+        #         if not self.show_network_warning():
+        #             return
 
         # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
@@ -435,11 +435,11 @@ class MainApp(QWidget):
             self.broadcast_app.show()
 
     def receiveFile(self):
-        if platform.system() == 'Windows':
-            network_type = self.check_network_type_windows()
-            if network_type == 'Public':
-                if not self.show_network_warning():
-                    return
+        # if platform.system() == 'Windows':
+        #     network_type = self.check_network_type_windows()
+        #     if network_type == 'Public':
+        #         if not self.show_network_warning():
+        #             return
 
         # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
