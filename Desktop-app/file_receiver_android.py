@@ -366,6 +366,7 @@ class ReceiveAppPJava(QWidget):
         self.typewriter_timer.start(50)
 
         QMetaObject.invokeMethod(self.file_receiver, "start", Qt.ConnectionType.QueuedConnection)
+        self.config_manager = ConfigManager()
 
     def initUI(self):
         self.setWindowTitle('Receive File')

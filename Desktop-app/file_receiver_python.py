@@ -366,6 +366,7 @@ class ReceiveAppP(QWidget):
         self.displayed_text = ""  # Text that will appear with typewriter effect
         self.char_index = 0  # Keeps track of the character index for typewriter effect
         self.progress_bar.setVisible(False)  # Initially hidden
+        self.config_manager = ConfigManager()
 
         self.file_receiver = ReceiveWorkerPython(client_ip)
         self.file_receiver.progress_update.connect(self.updateProgressBar)
