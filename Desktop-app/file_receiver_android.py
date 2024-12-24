@@ -535,27 +535,82 @@ class ReceiveAppPJava(QWidget):
             self.decryptor.show()
 
     def open_receiving_directory(self):
-        config = self.config_manager.get_config()
+        config = self.file_receiver.config_manager.get_config()
         receiving_dir = config.get("save_to_directory", "")
-        
+
         if receiving_dir:
             try:
                 current_os = platform.system()
-                
+
                 if current_os == 'Windows':
                     os.startfile(receiving_dir)
-                
+
                 elif current_os == 'Linux':
-                    subprocess.Popen(["xdg-open", receiving_dir])
-                
+                    file_managers = [
+                        ["xdg-open", receiving_dir],
+                        ["xdg-mime", "query", "default", "inode/directory"],
+                        ["dbus-send", "--print-reply", "--dest=org.freedesktop.FileManager1",
+                         "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowFolders",
+                         "array:string:" + receiving_dir, "string:"],
+                        ["gio", "open", receiving_dir],
+                        ["gvfs-open", receiving_dir],
+                        ["kde-open", receiving_dir],
+                        ["kfmclient", "exec", receiving_dir],
+                        ["nautilus", receiving_dir],
+                        ["dolphin", receiving_dir],
+                        ["thunar", receiving_dir],
+                        ["pcmanfm", receiving_dir],
+                        ["krusader", receiving_dir],
+                        ["mc", receiving_dir],
+                        ["nemo", receiving_dir],
+                        ["caja", receiving_dir],
+                        ["konqueror", receiving_dir],
+                        ["gwenview", receiving_dir],
+                        ["gimp", receiving_dir],
+                        ["eog", receiving_dir],
+                        ["feh", receiving_dir],
+                        ["gpicview", receiving_dir],
+                        ["mirage", receiving_dir],
+                        ["ristretto", receiving_dir],
+                        ["viewnior", receiving_dir],
+                        ["gthumb", receiving_dir],
+                        ["nomacs", receiving_dir],
+                        ["geeqie", receiving_dir],
+                        ["gwenview", receiving_dir],
+                        ["gpicview", receiving_dir],
+                        ["mirage", receiving_dir],
+                        ["ristretto", receiving_dir],
+                        ["viewnior", receiving_dir],
+                        ["gthumb", receiving_dir],
+                        ["nomacs", receiving_dir],
+                        ["geeqie", receiving_dir],
+                    ]
+
+                    success = False
+                    for cmd in file_managers:
+                        try:
+                            subprocess.run(cmd, timeout=3, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                            success = True
+                            break
+                        except subprocess.TimeoutExpired:
+                            continue
+                        except FileNotFoundError:
+                            continue
+                        except Exception as e:
+                            logger.debug(f"Failed to open with {cmd[0]}: {str(e)}")
+                            continue
+
+                    if not success:
+                        raise Exception("No suitable file manager found")
+
                 elif current_os == 'Darwin':  # macOS
                     subprocess.Popen(["open", receiving_dir])
-                
+
                 else:
                     raise NotImplementedError(f"Unsupported OS: {current_os}")
-            
+
             except FileNotFoundError as fnfe:
-                logger.error("No file manager or terminal emulator found on Linux: %s", fnfe)
+                logger.error("No file manager found: %s", fnfe)
             except Exception as e:
                 logger.error("Failed to open directory: %s", str(e))
         else:

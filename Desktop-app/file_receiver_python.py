@@ -589,6 +589,15 @@ class ReceiveAppP(QWidget):
 
                 elif current_os == 'Linux':
                     file_managers = [
+                        ["xdg-open", receiving_dir],
+                        ["xdg-mime", "query", "default", "inode/directory"],
+                        ["dbus-send", "--print-reply", "--dest=org.freedesktop.FileManager1",
+                         "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowFolders",
+                         "array:string:" + receiving_dir, "string:"],
+                        ["gio", "open", receiving_dir],
+                        ["gvfs-open", receiving_dir],
+                        ["kde-open", receiving_dir],
+                        ["kfmclient", "exec", receiving_dir],
                         ["nautilus", receiving_dir],
                         ["dolphin", receiving_dir],
                         ["thunar", receiving_dir],
@@ -596,10 +605,27 @@ class ReceiveAppP(QWidget):
                         ["krusader", receiving_dir],
                         ["mc", receiving_dir],
                         ["nemo", receiving_dir],
-                        ["dbus-send", "--print-reply", "--dest=org.freedesktop.FileManager1",
-                         "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowFolders",
-                         "array:string:" + receiving_dir, "string:"],
-                        ["xdg-open", receiving_dir]
+                        ["caja", receiving_dir],
+                        ["konqueror", receiving_dir],
+                        ["gwenview", receiving_dir],
+                        ["gimp", receiving_dir],
+                        ["eog", receiving_dir],
+                        ["feh", receiving_dir],
+                        ["gpicview", receiving_dir],
+                        ["mirage", receiving_dir],
+                        ["ristretto", receiving_dir],
+                        ["viewnior", receiving_dir],
+                        ["gthumb", receiving_dir],
+                        ["nomacs", receiving_dir],
+                        ["geeqie", receiving_dir],
+                        ["gwenview", receiving_dir],
+                        ["gpicview", receiving_dir],
+                        ["mirage", receiving_dir],
+                        ["ristretto", receiving_dir],
+                        ["viewnior", receiving_dir],
+                        ["gthumb", receiving_dir],
+                        ["nomacs", receiving_dir],
+                        ["geeqie", receiving_dir],
                     ]
 
                     success = False
