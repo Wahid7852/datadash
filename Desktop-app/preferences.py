@@ -25,14 +25,26 @@ class UpdateManager(QThread):
         self.config_manager = ConfigManager()
         self.should_cancel = False
         self.uga_version = self.config_manager.get_config()["version"]
-        
+        self.action = None  # Add this to track what action to perform
+    
     def run(self):
-        # This will be called when checking for updates
-        url = self.get_platform_link()
-        version_data = self.fetch_version_data(url)
-        if version_data:
-            self.process_version_data(version_data)
-
+        # This will be called when the thread starts
+        if self.action == "check_version":
+            url = self.get_platform_link()
+            version_data = self.fetch_version_data(url)
+            if version_data:
+                self.process_version_data(version_data)
+        elif self.action == "download":
+            self.start_download()
+    
+    def check_version(self):
+        self.action = "check_version"
+        self.start()
+    
+    def initiate_download(self):
+        self.action = "download"
+        self.start()
+    
     def start_download(self):
         self.should_cancel = False
         download_info = self.prepare_download_info()
@@ -968,7 +980,7 @@ class PreferencesApp(QWidget):
         help_dialog.exec()
 
     def fetch_platform_value(self):
-        self.update_manager.start()
+        self.update_manager.check_version()  # Changed from start() to check_version()
 
     def update_progress_dialog(self, downloaded_size, total_size, speed_kbps, time_remaining):
         if not hasattr(self, 'progress_dialog'):
@@ -1064,7 +1076,7 @@ class PreferencesApp(QWidget):
         if reply == QMessageBox.StandardButton.Open:
             self.download_page()
         elif reply == QMessageBox.StandardButton.Apply:
-            self.update_manager.start_download()
+            self.update_manager.initiate_download()  # Changed from start_download()
 
     def show_message_dialog(self, title, message, icon):
         msg_box = QMessageBox(self)
