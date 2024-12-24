@@ -91,8 +91,6 @@ class VersionCheck(QThread):
         return url
 
 class NetworkCheck(QThread):
-    # network_type = pyqtSignal(str)
-
     def __init__(self):
         super().__init__()
 
@@ -103,7 +101,6 @@ class NetworkCheck(QThread):
 
     def check_network_type_windows(self):
         try:
-            # PowerShell command to get all active network adapters and their profiles
             cmd = '''
             Get-NetAdapter | 
             Where-Object { $_.Status -eq 'Up' } | 
@@ -150,6 +147,7 @@ class MainApp(QWidget):
         self.config_manager.start()
         self.skip_version_check = skip_version_check
         self.network_thread = NetworkCheck()
+        self.network_thread.start()
 
     def on_config_ready(self):
         self.initUI(self.skip_version_check)
