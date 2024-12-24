@@ -132,90 +132,109 @@ class BroadcastWorker(QThread):
             return "Unable to get IP"
 
     def discover_receivers(self):
+        logger.info("Starting receiver discovery process")
         broadcast_address = self.get_broadcast()
         if (broadcast_address == "Unable to get IP"):
+            logger.error("Failed to get broadcast address")
             return
             
-        # Create new UDP socket
+        logger.info("Creating UDP socket for discovery")
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            
-            # Bind to LISTEN_PORT to receive responses
-            s.bind(('', LISTEN_PORT))
-            logger.info("Sending discover packet to %s:%d", broadcast_address, BROADCAST_PORT)
-            
-            # Set timeout before sending discovery packet
-            s.settimeout(2.0)  # Explicit float value
-            
-            # Get current time for timeout tracking
-            start_time = time.time()
-            timeout_duration = 2.0  # 2 seconds timeout
-            
-            # Send discovery packet
-            s.sendto(b'DISCOVER', (broadcast_address, BROADCAST_PORT))
-            
-            # Listen for responses until timeout
-            while (time.time() - start_time) < timeout_duration:
-                try:
-                    message, address = s.recvfrom(1024)
-                    message = message.decode()
-                    logger.info("Received response from %s: %s", address[0], message)
-                    
-                    if message.startswith('RECEIVER:'):
-                        device_name = message.split(':')[1]
-                        device_info = {'ip': address[0], 'name': device_name}
-                        logger.info("Found device: %s", device_info)
-                        self.device_detected.emit(device_info)
+            try:
+                logger.debug("Setting socket options")
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                
+                logger.debug(f"Binding to LISTEN_PORT {LISTEN_PORT}")
+                s.bind(('', LISTEN_PORT))
+                logger.info(f"Sending discover packet to {broadcast_address}:{BROADCAST_PORT}")
+                
+                s.settimeout(2.0)
+                start_time = time.time()
+                timeout_duration = 2.0
+
+                logger.debug("Sending DISCOVER broadcast")
+                s.sendto(b'DISCOVER', (broadcast_address, BROADCAST_PORT))
+                
+                while (time.time() - start_time) < timeout_duration:
+                    try:
+                        logger.debug("Waiting for discovery responses...")
+                        message, address = s.recvfrom(1024)
+                        message = message.decode()
+                        logger.info(f"Received response from {address[0]}: {message}")
                         
-                except socket.timeout:
-                    continue
-                except Exception as e:
-                    logger.error("Error during discovery: %s", str(e))
-                    break
+                        if message.startswith('RECEIVER:'):
+                            device_name = message.split(':')[1]
+                            device_info = {'ip': address[0], 'name': device_name}
+                            logger.info(f"Found valid device: {device_info}")
+                            self.device_detected.emit(device_info)
+                            
+                    except socket.timeout:
+                        logger.debug("Socket timeout while waiting for response")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error processing discovery response: {str(e)}")
+                        break
+                
+                logger.info(f"Discovery completed after {time.time() - start_time:.2f} seconds")
             
-            logger.info("Discovery completed after %0.2f seconds", time.time() - start_time)
+            except Exception as e:
+                logger.error(f"Critical error during discovery process: {str(e)}")
 
     def connect_to_device(self, device_ip, device_name):
+        logger.info(f"Initiating connection to device {device_name} ({device_ip})")
         try:
             if self.client_socket:
-                self.client_socket.shutdown(socket.SHUT_RDWR)  # Properly shutdown before closing
+                logger.debug("Closing existing socket connection")
+                self.client_socket.shutdown(socket.SHUT_RDWR)
                 self.client_socket.close()
             
-            # Create a new socket for connection
+            logger.debug("Creating new TCP socket")
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.client_socket.connect((device_ip,RECEIVER_JSON))
+            
+            logger.info(f"Attempting to connect to {device_ip}:{RECEIVER_JSON}")
+            self.client_socket.connect((device_ip, RECEIVER_JSON))
 
             device_data = {
                 'device_type': 'python',
                 'os': platform.system()
             }
+            logger.debug(f"Sending device data: {device_data}")
             device_data_json = json.dumps(device_data)
             self.client_socket.send(struct.pack('<Q', len(device_data_json)))
             self.client_socket.send(device_data_json.encode())
-            #com.an.Datadash
 
+            logger.debug("Waiting for receiver data")
             receiver_json_size = struct.unpack('<Q', self.client_socket.recv(8))[0]
             receiver_json = self.client_socket.recv(receiver_json_size).decode()
             self.receiver_data = json.loads(receiver_json)
+            logger.info(f"Received device data: {self.receiver_data}")
 
             device_type = self.receiver_data.get('device_type', 'unknown')
+            logger.info(f"Detected device type: {device_type}")
+
             if device_type == 'python':
+                logger.info("Connecting to Python device")
                 self.device_connected.emit(device_ip, device_name, self.receiver_data)
                 self.client_socket.close()
             elif device_type == 'java':
+                logger.info("Connecting to Java device")
                 self.device_connected_java.emit(device_ip, device_name, self.receiver_data)
             elif device_type == 'swift':
+                logger.info("Connecting to Swift device")
                 self.device_connected_swift.emit(device_ip, device_name, self.receiver_data)
             else:
+                logger.error(f"Unsupported device type: {device_type}")
                 raise ValueError("Unsupported device type")
 
         except Exception as e:
+            logger.error(f"Connection error: {str(e)}")
             QMessageBox.critical(None, "Connection Error", f"Failed to connect: {str(e)}")
         finally:
             if self.client_socket:
-                self.client_socket.close()  # Ensure the socket is always closed
+                logger.debug("Closing socket connection")
+                self.client_socket.close()
 
     def closeEvent(self, event):
         # Ensure socket is forcefully closed

@@ -38,28 +38,41 @@ class FileReceiver(QThread):
         self.config_manager.start()
 
     def run(self):
+        logger.info("Starting FileReceiver thread")
         try:
             if self.server_socket:
+                logger.debug("Closing existing server socket")
                 self.server_socket.close()
                 sleep(0.5)
             if self.client_socket:
+                logger.debug("Closing existing client socket")
                 self.client_socket.close()
                 sleep(0.5)
             if self.receiver_worker:
+                logger.debug("Terminating existing receiver worker")
                 self.receiver_worker.terminate()
         except Exception as e:
-            pass
+            logger.error(f"Error cleaning up existing connections: {str(e)}")
 
+        logger.info("Initializing new server socket")
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind(('0.0.0.0', RECEIVER_JSON))
-        self.server_socket.listen(5)
+        try:
+            self.server_socket.bind(('0.0.0.0', RECEIVER_JSON))
+            logger.info(f"Server bound to port {RECEIVER_JSON}")
+            self.server_socket.listen(5)
+            logger.info("Server listening for connections")
 
-        while True:
-            self.client_socket, addr = self.server_socket.accept()
-            self.store_client_ip()
-            self.handle_device_type()
-            self.client_socket.close()
+            while True:
+                logger.debug("Waiting for incoming connection")
+                self.client_socket, addr = self.server_socket.accept()
+                logger.info(f"New connection accepted from {addr}")
+                self.store_client_ip()
+                self.handle_device_type()
+                self.client_socket.close()
+
+        except Exception as e:
+            logger.error(f"Critical error in server operation: {str(e)}")
 
     def store_client_ip(self):
         self.client_ip = self.client_socket.getpeername()[0]
@@ -67,38 +80,45 @@ class FileReceiver(QThread):
         return self.client_ip
 
     def handle_device_type(self):
+        logger.info("Handling device type negotiation")
+        try:
+            device_data = {
+                "device_type": "python",
+                "os": platform.system()
+            }
+            device_data_json = json.dumps(device_data)
+            logger.debug(f"Sending device data: {device_data}")
+            
+            self.client_socket.send(struct.pack('<Q', len(device_data_json)))
+            self.client_socket.send(device_data_json.encode())
+            logger.debug(f"Device data sent to {self.client_socket.getpeername()}")
 
-        device_data = {
-            "device_type": "python",
-            "os": platform.system()
-        }
-        device_data_json = json.dumps(device_data)
-        self.client_socket.send(struct.pack('<Q', len(device_data_json)))
-        self.client_socket.send(device_data_json.encode())
-        logger.debug(f"Connected to {self.client_socket.getpeername()}")
+            logger.debug("Waiting for sender device information")
+            device_json_size = struct.unpack('<Q', self.client_socket.recv(8))[0]
+            device_json = self.client_socket.recv(device_json_size).decode()
+            self.device_info = json.loads(device_json)
+            
+            sender_device_type = self.device_info.get("device_type", "unknown")
+            sender_os = self.device_info.get("os", "unknown")
+            logger.info(f"Connected to device type: {sender_device_type}, OS: {sender_os}")
 
-        device_json_size = struct.unpack('<Q', self.client_socket.recv(8))[0]
-        device_json = self.client_socket.recv(device_json_size).decode()
-        self.device_info = json.loads(device_json)
-        sender_device_type = self.device_info.get("device_type", "unknown")
-        sender_os = self.device_info.get("os", "unknown")
-        if sender_device_type == "python":
-            logger.debug("Connected to a Python device.")
-            self.show_receive_app_p_signal.emit(sender_os)
+            if sender_device_type == "python":
+                logger.info("Initializing Python device connection")
+                self.show_receive_app_p_signal.emit(sender_os)
+            elif sender_device_type == "java":
+                logger.info("Initializing Java device connection")
+                self.show_receive_app_p_signal_java.emit()
+            elif sender_device_type == "swift":
+                logger.info("Initializing Swift device connection")
+                self.show_receive_app_p_signal_swift.emit()
+            else:
+                logger.warning(f"Unknown device type received: {sender_device_type}")
+            
             sleep(1)
             self.cleanup_sockets()
-        elif sender_device_type == "java":
-            logger.debug("Connected to a Java device.")
-            self.show_receive_app_p_signal_java.emit()
-            sleep(1)
-            self.cleanup_sockets()
-        elif sender_device_type == "swift":
-            logger.debug("Connected to a Swift device.")
-            self.show_receive_app_p_signal_swift.emit()
-            sleep(1)
-            self.cleanup_sockets()
-        else:
-            logger.debug("Unknown device type received.")
+
+        except Exception as e:
+            logger.error(f"Error in device type handling: {str(e)}")
     
     def cleanup_sockets(self):
         if self.client_socket:
@@ -109,6 +129,7 @@ class FileReceiver(QThread):
 class ReceiveApp(QWidget):
     def __init__(self):
         super().__init__()
+        logger.info("Initializing ReceiveApp")
         self.config_manager = ConfigManager()
         self.config_manager.config_updated.connect(self.on_config_updated)
         self.config_manager.log_message.connect(logger.info)
@@ -208,21 +229,36 @@ class ReceiveApp(QWidget):
             #com.an.Datadash
 
     def listenForBroadcast(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('', BROADCAST_PORT))
+        logger.info("Starting broadcast listener")
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                logger.debug("Setting up broadcast socket")
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('', BROADCAST_PORT))
+                logger.info(f"Listening for broadcasts on port {BROADCAST_PORT}")
 
-            while True:
-                if self.file_receiver.broadcasting:
-                    message, address = s.recvfrom(1024)
-                    message = message.decode()
-                    if message == 'DISCOVER':
-                        response = f'RECEIVER:{self.config_manager.get_config()["device_name"]}'
-                        # Create a new socket to send the response on LISTEN_PORT
-                        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as response_socket:
-                            response_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
-                sleep(1)  # Avoid busy-waiting
+                while True:
+                    if self.file_receiver.broadcasting:
+                        try:
+                            message, address = s.recvfrom(1024)
+                            message = message.decode()
+                            logger.debug(f"Received broadcast message: {message} from {address}")
+                            
+                            if message == 'DISCOVER':
+                                device_name = self.config_manager.get_config()["device_name"]
+                                response = f'RECEIVER:{device_name}'
+                                logger.info(f"Sending response as {device_name} to {address[0]}")
+                                
+                                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as response_socket:
+                                    response_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
+                                    logger.debug(f"Response sent to {address[0]}:{LISTEN_PORT}")
+                        except Exception as e:
+                            logger.error(f"Error handling broadcast message: {str(e)}")
+                    sleep(1)
+
+        except Exception as e:
+            logger.error(f"Critical error in broadcast listener: {str(e)}")
 
     def connection_successful(self):
         self.movie.stop()
@@ -261,15 +297,19 @@ class ReceiveApp(QWidget):
         self.setGeometry(x, y, window_width, window_height)
 
     def closeEvent(self, event):
+        logger.info("Shutting down ReceiveApp")
         try:
             """Override the close event to ensure everything is stopped properly."""
             if self.file_receiver:
+                logger.debug("Terminating file receiver")
                 self.file_receiver.terminate()
                 self.stop()
-        except AttributeError:
-            pass
-        # Stop the broadcasting thread
+        except AttributeError as e:
+            logger.error(f"Error during shutdown: {str(e)}")
+        
+        logger.debug("Stopping broadcast thread")
         self.file_receiver.broadcasting = False
+        logger.info("ReceiveApp shutdown complete")
         event.accept()
 
     def stop(self):
