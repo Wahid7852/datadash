@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/dialog_background"
     android:padding="20dp"
+    android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
     <androidx.appcompat.widget.AppCompatButton
