@@ -90,6 +90,56 @@ class VersionCheck(QThread):
             url = f"https://datadashshare.vercel.app/api/platformNumberbeta?platform=python_{platform_name}"
         return url
 
+class NetworkCheck(QThread):
+    network_type = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        if platform.system() == 'Windows':
+            network_type = self.check_network_type_windows()
+            self.network_type.emit(network_type)
+
+    def check_network_type_windows(self):
+        try:
+            # PowerShell command to get all active network adapters and their profiles
+            cmd = '''
+            Get-NetAdapter | 
+            Where-Object { $_.Status -eq 'Up' } | 
+            ForEach-Object { 
+                $adapter = $_
+                Get-NetConnectionProfile -InterfaceIndex $adapter.ifIndex | 
+                Select-Object @{Name='Name';Expression={$adapter.Name}}, 
+                            @{Name='Type';Expression={$adapter.MediaType}}, 
+                            NetworkCategory 
+            } | ConvertTo-Json
+            '''
+            result = subprocess.run(['powershell', '-Command', cmd], 
+                                 capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                network_data = json.loads(result.stdout)
+                # Handle both single and multiple network adapters
+                if not isinstance(network_data, list):
+                    network_data = [network_data]
+                
+                # Check all active network adapters
+                for network in network_data:
+                    if network.get('NetworkCategory') == 'Public':
+                        logger.warning(f"Connected to a Public network on interface: {network.get('Name')} ({network.get('Type')})")
+                        return 'Public'
+                
+                logger.info("All network connections are Private")
+                return 'Private'
+            else:
+                logger.error("Failed to get network information")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error checking network type: {e}")
+            return None
+
 class MainApp(QWidget):
     def __init__(self, skip_version_check=False):
         super().__init__()
@@ -99,6 +149,9 @@ class MainApp(QWidget):
         self.config_manager.config_ready.connect(self.on_config_ready)
         self.config_manager.start()
         self.skip_version_check = skip_version_check
+        self.network_thread = NetworkCheck()
+        self.network_thread.network_type.connect(self.on_network_type_received)
+        self.pending_operation = None
 
     def on_config_ready(self):
         self.initUI(self.skip_version_check)
@@ -281,31 +334,6 @@ class MainApp(QWidget):
             os.makedirs(dest)
             logger.info("Created folder to receive files")
 
-    def check_network_type_windows(self):
-        try:
-            # PowerShell command to get network profile
-            cmd = 'Get-NetConnectionProfile | ConvertTo-Json'
-            result = subprocess.run(['powershell', '-Command', cmd], 
-                                 capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                network_data = json.loads(result.stdout)
-                # If multiple networks, check them all
-                if isinstance(network_data, list):
-                    for network in network_data:
-                        if network.get('NetworkCategory') == 'Public':
-                            logger.warning("Connected to a Public network")
-                            return 'Public'
-                else:
-                    if network_data.get('NetworkCategory') == 'Public':
-                        logger.warning("Connected to a Public network")
-                        return 'Public'
-                
-                logger.info("Connected to a Private network")
-                return 'Private'
-        except Exception as e:
-            logger.error(f"Error checking network type: {e}")
-            return None
         
     def show_network_warning(self):
         warning = QMessageBox(self)
@@ -358,12 +386,16 @@ class MainApp(QWidget):
         warning.exec()
         sys.exit()
 
+    def on_network_type_received(self, network_type):
+        if network_type == 'Public':
+            self.show_network_warning()
+        else:
+            pass
+
     def sendFile(self):
-        # if platform.system() == 'Windows':
-        #     network_type = self.check_network_type_windows()
-        #     if network_type == 'Public':
-        #         if not self.show_network_warning():
-        #             return
+        if platform.system() == 'Windows':
+            self.network_thread.start()
+            return
 
         # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
@@ -435,11 +467,9 @@ class MainApp(QWidget):
             self.broadcast_app.show()
 
     def receiveFile(self):
-        # if platform.system() == 'Windows':
-        #     network_type = self.check_network_type_windows()
-        #     if network_type == 'Public':
-        #         if not self.show_network_warning():
-        #             return
+        if platform.system() == 'Windows':
+            self.network_thread.start()
+            return
 
         # Check if warnings should be shown
         if self.config_manager.get_config()["show_warning"]:
