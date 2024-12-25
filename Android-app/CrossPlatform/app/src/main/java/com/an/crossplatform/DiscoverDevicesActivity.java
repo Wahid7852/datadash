@@ -55,6 +55,7 @@ public class DiscoverDevicesActivity extends AppCompatActivity {
     private Socket tcpSocket;
     private DataOutputStream dataOutputStream;
     private DataInputStream dataInputStream;
+    private String broadcastIp = "255.255.255.255";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,7 +76,7 @@ public class DiscoverDevicesActivity extends AppCompatActivity {
         listDevices.setAdapter(adapter);
 
         // Call getBroadcastIp when the activity starts
-        String broadcastIp = getBroadcastIp(this);
+//        String broadcastIp = getBroadcastIp(this);
         FileLogger.log("DiscoverDevices", "BroadcastIP: " + broadcastIp);
 
         btnDiscover.setOnClickListener(v -> {
@@ -124,7 +125,7 @@ public class DiscoverDevicesActivity extends AppCompatActivity {
                 discoverSocket = new DatagramSocket();
                 discoverSocket.setBroadcast(true);
 
-                String broadcastIp = getBroadcastIp(this);
+//                String broadcastIp = getBroadcastIp(this);
                 byte[] sendData = "DISCOVER".getBytes();
                 InetAddress broadcastAddress = InetAddress.getByName(broadcastIp);
                 DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, broadcastAddress, DISCOVER_PORT);
@@ -146,22 +147,22 @@ public class DiscoverDevicesActivity extends AppCompatActivity {
         }).start();
     }
 
-    public static String getBroadcastIp(Context context) {
-        // Get the WifiManager service
-        WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-        // Get the local IP address
-        int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
-
-        // Convert to a human-readable string format
-        String localIp = Formatter.formatIpAddress(ipAddress);
-
-        // Replace the last part with "255"
-        String[] ipParts = localIp.split("\\.");
-        ipParts[3] = "255";
-        String broadcastIp = String.join(".", ipParts);
-
-        return broadcastIp;
-    }
+//    public static String getBroadcastIp(Context context) {
+//        // Get the WifiManager service
+//        WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+//        // Get the local IP address
+//        int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
+//
+//        // Convert to a human-readable string format
+//        String localIp = Formatter.formatIpAddress(ipAddress);
+//
+//        // Replace the last part with "255"
+//        String[] ipParts = localIp.split("\\.");
+//        ipParts[3] = "255";
+//        String broadcastIp = String.join(".", ipParts);
+//
+//        return broadcastIp;
+//    }
 
 
     private void closeAllSockets() {

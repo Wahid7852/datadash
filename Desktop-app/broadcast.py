@@ -19,6 +19,8 @@ from file_sender_swift import SendAppSwift
 import os
 import time
 
+BROADCAST_ADDRESS="255.255.255.255"
+
 class CircularDeviceButton(QWidget):
     def __init__(self, device_name, device_ip, parent=None):
         super().__init__(parent)
@@ -98,45 +100,45 @@ class BroadcastWorker(QThread):
         # Start discovering receivers directly
         self.discover_receivers()
 
-    def get_broadcast(self):
-        try:
-            # Get operating system
-            system = platform.system().lower()
-            ip = ""
+    # def get_broadcast(self):
+    #     try:
+    #         # Get operating system
+    #         system = platform.system().lower()
+    #         ip = ""
             
-            if system == "darwin":  # macOS
-                ip = os.popen("ifconfig en0 | grep 'inet ' | awk '{print $2}'").read().strip()
-                if not ip:
-                    ip = os.popen("ifconfig en1 | grep 'inet ' | awk '{print $2}'").read().strip()
+    #         if system == "darwin":  # macOS
+    #             ip = os.popen("ifconfig en0 | grep 'inet ' | awk '{print $2}'").read().strip()
+    #             if not ip:
+    #                 ip = os.popen("ifconfig en1 | grep 'inet ' | awk '{print $2}'").read().strip()
             
-            elif system == "windows":
-                ip = os.popen("ipconfig | findstr /i \"IPv4\"").read()
-                ip = ip.split(": ")[-1].strip()
+    #         elif system == "windows":
+    #             ip = os.popen("ipconfig | findstr /i \"IPv4\"").read()
+    #             ip = ip.split(": ")[-1].strip()
             
-            elif system == "linux":
-                ip = os.popen("hostname -I | awk '{print $1}'").read().strip()
+    #         elif system == "linux":
+    #             ip = os.popen("hostname -I | awk '{print $1}'").read().strip()
             
-            if not ip:
-                raise Exception("No valid IP address found")
+    #         if not ip:
+    #             raise Exception("No valid IP address found")
                 
-            logger.info("Local IP determined: %s", ip)
-            # Split IP and create broadcast
-            ip_parts = ip.split('.')
-            ip_parts[-1] = '255'
-            broadcast_address = '.'.join(ip_parts)
-            logger.info("Broadcast address determined: %s", broadcast_address)
-            return broadcast_address
+    #         logger.info("Local IP determined: %s", ip)
+    #         # Split IP and create broadcast
+    #         ip_parts = ip.split('.')
+    #         ip_parts[-1] = '255'
+    #         BROADCAST_ADDRESS = '.'.join(ip_parts)
+    #         logger.info("Broadcast address determined: %s", BROADCAST_ADDRESS)
+    #         return BROADCAST_ADDRESS
                             
-        except Exception as e:
-            logger.error("Error obtaining local IP: %s", e)
-            return "Unable to get IP"
+        # except Exception as e:
+        #     logger.error("Error obtaining local IP: %s", e)
+        #     return "Unable to get IP"
 
     def discover_receivers(self):
         logger.info("Starting receiver discovery process")
-        broadcast_address = self.get_broadcast()
-        if (broadcast_address == "Unable to get IP"):
-            logger.error("Failed to get broadcast address")
-            return
+        # BROADCAST_ADDRESS = self.get_broadcast()
+        # if (BROADCAST_ADDRESS == "Unable to get IP"):
+        #     logger.error("Failed to get broadcast address")
+        #     return
             
         logger.info("Creating UDP socket for discovery")
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -147,14 +149,14 @@ class BroadcastWorker(QThread):
                 
                 logger.debug(f"Binding to LISTEN_PORT {LISTEN_PORT}")
                 s.bind(('', LISTEN_PORT))
-                logger.info(f"Sending discover packet to {broadcast_address}:{BROADCAST_PORT}")
+                logger.info(f"Sending discover packet to {BROADCAST_ADDRESS}:{BROADCAST_PORT}")
                 
                 s.settimeout(2.0)
                 start_time = time.time()
                 timeout_duration = 2.0
 
                 logger.debug("Sending DISCOVER broadcast")
-                s.sendto(b'DISCOVER', (broadcast_address, BROADCAST_PORT))
+                s.sendto(b'DISCOVER', (BROADCAST_ADDRESS, BROADCAST_PORT))
                 
                 while (time.time() - start_time) < timeout_duration:
                     try:
