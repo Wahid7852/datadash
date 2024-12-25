@@ -101,21 +101,19 @@ class NetworkCheck(QThread):
 
     def check_network_type_windows(self):
         try:
-            # Modified PowerShell command to output in a more reliable format
+            # Simpler PowerShell command that works on both Windows 10 and 11
             cmd = '''
-            $result = Get-NetAdapter | 
-            Where-Object { $_.Status -eq 'Up' } | 
-            ForEach-Object { 
-                $adapter = $_
-                $profile = Get-NetConnectionProfile -InterfaceIndex $adapter.ifIndex
-                [PSCustomObject]@{
-                    Name = $adapter.Name
-                    Type = $adapter.MediaType
-                    NetworkCategory = $profile.NetworkCategory.ToString()
+            $connections = @()
+            Get-NetConnectionProfile | ForEach-Object {
+                $connections += [PSCustomObject]@{
+                    Name = (Get-NetAdapter -InterfaceIndex $_.InterfaceIndex).Name
+                    NetworkCategory = $_.NetworkCategory.ToString()
+                    Status = (Get-NetAdapter -InterfaceIndex $_.InterfaceIndex).Status
                 }
             }
-            if ($result) {
-                ConvertTo-Json -InputObject $result -Compress
+            $activeConnections = $connections | Where-Object { $_.Status -eq 'Up' }
+            if ($activeConnections) {
+                $activeConnections | ConvertTo-Json
             }
             '''
             
@@ -123,7 +121,7 @@ class NetworkCheck(QThread):
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
 
-            result = subprocess.run(['powershell', '-Command', cmd], 
+            result = subprocess.run(['powershell', '-ExecutionPolicy', 'Bypass', '-Command', cmd], 
                                  capture_output=True, 
                                  text=True,
                                  startupinfo=startupinfo)
@@ -139,7 +137,7 @@ class NetworkCheck(QThread):
                     for network in network_data:
                         logger.info(f"Network interface: {network.get('Name')} - Category: {network.get('NetworkCategory')}")
                         if network.get('NetworkCategory', '').lower() == 'public':
-                            logger.warning(f"Public network detected on interface: {network.get('Name')} ({network.get('Type')})")
+                            logger.warning(f"Public network detected on interface: {network.get('Name')}")
                             return 'Public'
                     
                     logger.info("All network connections are Private")
