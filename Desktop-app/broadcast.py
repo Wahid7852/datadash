@@ -97,50 +97,7 @@ class BroadcastWorker(QThread):
         self.config_manager.start()
 
     def run(self):
-        # Start discovering receivers directly
-        self.discover_receivers()
-
-    # def get_broadcast(self):
-    #     try:
-    #         # Get operating system
-    #         system = platform.system().lower()
-    #         ip = ""
-            
-    #         if system == "darwin":  # macOS
-    #             ip = os.popen("ifconfig en0 | grep 'inet ' | awk '{print $2}'").read().strip()
-    #             if not ip:
-    #                 ip = os.popen("ifconfig en1 | grep 'inet ' | awk '{print $2}'").read().strip()
-            
-    #         elif system == "windows":
-    #             ip = os.popen("ipconfig | findstr /i \"IPv4\"").read()
-    #             ip = ip.split(": ")[-1].strip()
-            
-    #         elif system == "linux":
-    #             ip = os.popen("hostname -I | awk '{print $1}'").read().strip()
-            
-    #         if not ip:
-    #             raise Exception("No valid IP address found")
-                
-    #         logger.info("Local IP determined: %s", ip)
-    #         # Split IP and create broadcast
-    #         ip_parts = ip.split('.')
-    #         ip_parts[-1] = '255'
-    #         BROADCAST_ADDRESS = '.'.join(ip_parts)
-    #         logger.info("Broadcast address determined: %s", BROADCAST_ADDRESS)
-    #         return BROADCAST_ADDRESS
-                            
-        # except Exception as e:
-        #     logger.error("Error obtaining local IP: %s", e)
-        #     return "Unable to get IP"
-
-    def discover_receivers(self):
         logger.info("Starting receiver discovery process")
-        # BROADCAST_ADDRESS = self.get_broadcast()
-        # if (BROADCAST_ADDRESS == "Unable to get IP"):
-        #     logger.error("Failed to get broadcast address")
-        #     return
-            
-        logger.info("Creating UDP socket for discovery")
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
                 logger.debug("Setting socket options")
@@ -149,14 +106,14 @@ class BroadcastWorker(QThread):
                 
                 logger.debug(f"Binding to LISTEN_PORT {LISTEN_PORT}")
                 s.bind(('', LISTEN_PORT))
-                logger.info(f"Sending discover packet to {BROADCAST_ADDRESS}:{BROADCAST_PORT}")
+                logger.info("Sending discover packet to 255.255.255.255:49185")
                 
                 s.settimeout(2.0)
                 start_time = time.time()
                 timeout_duration = 2.0
 
                 logger.debug("Sending DISCOVER broadcast")
-                s.sendto(b'DISCOVER', (BROADCAST_ADDRESS, BROADCAST_PORT))
+                s.sendto(b'DISCOVER', ('255.255.255.255', BROADCAST_PORT))
                 
                 while (time.time() - start_time) < timeout_duration:
                     try:
