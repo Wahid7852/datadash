@@ -237,13 +237,8 @@ class ReceiveApp(QWidget):
             search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             search_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             search_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            search_socket.bind(('0.0.0.0', BROADCAST_PORT))
+            search_socket.bind(('0.0.0.0', BROADCAST_PORT))  # Listen on port 49185
             logger.info(f"Searching for broadcasts on port {BROADCAST_PORT}")
-
-            # Socket for sending replies
-            reply_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            reply_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            reply_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
             while True:
                 if self.file_receiver.broadcasting:
@@ -257,7 +252,11 @@ class ReceiveApp(QWidget):
                             response = f'RECEIVER:{device_name}'
                             logger.info(f"Sending response as {device_name} to {address[0]}")
                             
-                            reply_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
+                            # Create new socket for sending response
+                            reply_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                            reply_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                            reply_socket.sendto(response.encode(), (address[0], LISTEN_PORT))  # Send to port 49186
+                            reply_socket.close()
                             logger.debug(f"Response sent to {address[0]}:{LISTEN_PORT}")
                     except Exception as e:
                         logger.error(f"Error handling broadcast message: {str(e)}")
@@ -268,8 +267,6 @@ class ReceiveApp(QWidget):
         finally:
             if search_socket:
                 search_socket.close()
-            if reply_socket:
-                reply_socket.close()
 
     def connection_successful(self):
         self.movie.stop()
