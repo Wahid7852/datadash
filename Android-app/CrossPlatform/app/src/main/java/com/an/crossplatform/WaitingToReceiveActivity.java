@@ -116,56 +116,60 @@ public class WaitingToReceiveActivity extends AppCompatActivity {
                 // Force release ports first
                 forceReleaseUDPPort(BROADCAST_PORT);
 
-                // Create and configure UDP socket
+                // Create and configure UDP socket with broadcast address
                 udpSocket = new DatagramSocket(BROADCAST_PORT);
+                udpSocket.setBroadcast(true);
                 udpSocket.setSoTimeout(1000);
-                byte[] recvBuf = new byte[1024]; // Reduced buffer size
+                InetAddress broadcastAddress = InetAddress.getByName("255.255.255.255");
+                
+                byte[] recvBuf = new byte[1024];
 
-                while (!tcpConnectionEstablished) {
+                while (!tcpConnectionEstablished && isRunning) {
                     try {
                         // Wait for DISCOVER packet
                         DatagramPacket receivePacket = new DatagramPacket(recvBuf, recvBuf.length);
-                        FileLogger.log("WaitingToReceive", "Waiting for discovery packet on port " + BROADCAST_PORT);
                         udpSocket.receive(receivePacket);
 
-                        // Extract and verify message
+                        // Extract message and verify source
                         String message = new String(receivePacket.getData(), 0, receivePacket.getLength(), StandardCharsets.UTF_8).trim();
-                        FileLogger.log("WaitingToReceive", "Received message: " + message);
+                        InetAddress senderAddress = receivePacket.getAddress();
+                        FileLogger.log("WaitingToReceive", "Received broadcast from " + senderAddress + ": " + message);
 
-                        if ("DISCOVER".equals(message)) { // Exact match
-                            InetAddress senderAddress = receivePacket.getAddress();
-
-                            // Format response exactly like Python: "RECEIVER:devicename"
+                        if ("DISCOVER".equals(message)) {
+                            // Send response using the same socket
                             String response = "RECEIVER:" + DEVICE_NAME;
                             byte[] sendData = response.getBytes(StandardCharsets.UTF_8);
-
-                            // Send response to LISTEN_PORT
+                            
                             DatagramPacket sendPacket = new DatagramPacket(
-                                    sendData,
-                                    sendData.length,
-                                    senderAddress,
-                                    LISTEN_PORT
+                                sendData,
+                                sendData.length,
+                                senderAddress,  // Send directly to sender
+                                LISTEN_PORT
                             );
 
                             udpSocket.send(sendPacket);
-                            FileLogger.log("WaitingToReceive", "Sent response: " + response + " to " +
-                                    senderAddress.getHostAddress() + ":" + LISTEN_PORT);
+                            FileLogger.log("WaitingToReceive", "Sent response to " + senderAddress + ": " + response);
 
-                            // Start TCP connection handling
+                            // Start TCP connection handling in separate thread
                             new Thread(() -> establishTcpConnection(senderAddress)).start();
                         }
-                    } catch (SocketException e) {
+                    } catch (SocketException se) {
                         if (!isRunning) {
-                            FileLogger.log("WaitingToReceive", "UDP socket closed normally");
-                            break;
+                            break; // Normal shutdown
                         }
                     } catch (IOException e) {
-                        // Log timeout but continue listening
-                        FileLogger.log("WaitingToReceive", "UDP receive timeout");
+                        // Only log timeout if we're still running
+                        if (isRunning) {
+                            FileLogger.log("WaitingToReceive", "UDP receive timeout");
+                        }
                     }
                 }
             } catch (Exception e) {
-                FileLogger.log("WaitingToReceive", "UDP Discovery error", e);
+                FileLogger.log("WaitingToReceive", "Critical UDP error", e);
+            } finally {
+                if (udpSocket != null && !udpSocket.isClosed()) {
+                    udpSocket.close();
+                }
             }
         }).start();
     }

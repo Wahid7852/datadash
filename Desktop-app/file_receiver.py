@@ -230,35 +230,46 @@ class ReceiveApp(QWidget):
 
     def listenForBroadcast(self):
         logger.info("Starting broadcast listener")
+        search_socket = None
+        reply_socket = None
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                logger.debug("Setting up broadcast socket")
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind(('', BROADCAST_PORT))
-                logger.info(f"Listening for broadcasts on port {BROADCAST_PORT}")
+            # Socket for searching broadcasts
+            search_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            search_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            search_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            search_socket.bind(('0.0.0.0', BROADCAST_PORT))
+            logger.info(f"Searching for broadcasts on port {BROADCAST_PORT}")
 
-                while True:
-                    if self.file_receiver.broadcasting:
-                        try:
-                            message, address = s.recvfrom(1024)
-                            message = message.decode()
-                            logger.debug(f"Received broadcast message: {message} from {address}")
+            # Socket for sending replies
+            reply_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            reply_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            reply_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+            while True:
+                if self.file_receiver.broadcasting:
+                    try:
+                        message, address = search_socket.recvfrom(1024)
+                        message = message.decode()
+                        logger.debug(f"Received broadcast message: {message} from {address}")
+                        
+                        if message == 'DISCOVER':
+                            device_name = self.config_manager.get_config()["device_name"]
+                            response = f'RECEIVER:{device_name}'
+                            logger.info(f"Sending response as {device_name} to {address[0]}")
                             
-                            if message == 'DISCOVER':
-                                device_name = self.config_manager.get_config()["device_name"]
-                                response = f'RECEIVER:{device_name}'
-                                logger.info(f"Sending response as {device_name} to {address[0]}")
-                                
-                                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as response_socket:
-                                    response_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
-                                    logger.debug(f"Response sent to {address[0]}:{LISTEN_PORT}")
-                        except Exception as e:
-                            logger.error(f"Error handling broadcast message: {str(e)}")
+                            reply_socket.sendto(response.encode(), (address[0], LISTEN_PORT))
+                            logger.debug(f"Response sent to {address[0]}:{LISTEN_PORT}")
+                    except Exception as e:
+                        logger.error(f"Error handling broadcast message: {str(e)}")
                     sleep(1)
 
         except Exception as e:
             logger.error(f"Critical error in broadcast listener: {str(e)}")
+        finally:
+            if search_socket:
+                search_socket.close()
+            if reply_socket:
+                reply_socket.close()
 
     def connection_successful(self):
         self.movie.stop()
