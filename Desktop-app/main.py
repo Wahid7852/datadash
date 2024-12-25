@@ -119,8 +119,14 @@ class NetworkCheck(QThread):
             }
             '''
             
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+
             result = subprocess.run(['powershell', '-Command', cmd], 
-                                 capture_output=True, text=True)
+                                 capture_output=True, 
+                                 text=True,
+                                 startupinfo=startupinfo)
             
             if result.returncode == 0 and result.stdout.strip():
                 try:
