@@ -36,6 +36,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -58,6 +59,8 @@ public class ReceiveFileActivity extends AppCompatActivity {
     private Button openFolder;
     private Button donebtn;
     private TextView txt_path;
+    private boolean isEncryptedTransfer;
+    private ArrayList<String> encryptedFiles = new ArrayList<String>();
     private final ExecutorService executorService = Executors.newFixedThreadPool(2);
     private static final int FILE_TRANSFER_PORT = 63152;
     private static final int BUFFER_SIZE = 4096;
@@ -189,6 +192,13 @@ public class ReceiveFileActivity extends AppCompatActivity {
                     String encryptionFlag = new String(encryptionFlagBytes).trim();
 
                     if (encryptionFlag.isEmpty() || encryptionFlag.charAt(encryptionFlag.length() - 1) == 'h') {
+
+                        if (isEncryptedTransfer) {
+                            // Handle encrypted files
+                            Intent intent = new Intent(ReceiveFileActivity.this, Decryptor.class);
+                            intent.putStringArrayListExtra("files", encryptedFiles);
+                            startActivity(intent);
+                        }
                         runOnUiThread(() -> {
                             txt_waiting.setText("File transfer completed");
                             progressBar.setProgress(0);
@@ -201,6 +211,8 @@ public class ReceiveFileActivity extends AppCompatActivity {
                         forceReleasePort(FILE_TRANSFER_PORT);
                         break;
                     }
+
+                    isEncryptedTransfer = encryptionFlag.equals("encyp: t");
 
                     byte[] fileNameSizeBytes = new byte[8];
                     clientSocket.getInputStream().read(fileNameSizeBytes);
@@ -309,6 +321,10 @@ public class ReceiveFileActivity extends AppCompatActivity {
 
                 FileLogger.log("ReceiveFileActivity", "File written successfully: " + receivedFile.getName());
 
+                if (isEncryptedTransfer) {
+                    encryptedFiles.add(receivedFile.getPath());
+                    Log.d("ReceiveFileActivityPython", "Received encrypted file: " + receivedFile.getPath());
+                }
             } catch (IOException | JSONException e) {
                 FileLogger.log("ReceiveFileActivity", "Error handling file path: " + fileName, e);
             }
