@@ -275,6 +275,7 @@ class PreferencesApp(QWidget):
         self.original_preferences = {}
         self.initUI()
         self.setFixedSize(525, 600)
+        self.main_app = None
 
     def setup_update_manager_signals(self):
         self.update_manager.version_check_complete.connect(self.show_version_dialog)
@@ -1174,6 +1175,30 @@ class PreferencesApp(QWidget):
         elif channel == "stable":
             QDesktopServices.openUrl(QUrl("https://datadashshare.vercel.app/download"))
             logger.info("Opened stable page")
+
+    def cleanup(self):
+        # Stop threads
+        if self.update_manager:
+            self.update_manager.quit()
+            self.update_manager.wait()
+        
+        if self.config_manager:
+            self.config_manager.quit()
+            self.config_manager.wait()
+
+        # Close child windows
+        if self.main_app:
+            self.main_app.close()
+
+        # Close any open dialogs
+        if hasattr(self, 'progress_dialog'):
+            self.progress_dialog.close()
+
+    def closeEvent(self, event):
+        logger.info("Shutting down Preferences window")
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
 
 
 if __name__ == '__main__':
