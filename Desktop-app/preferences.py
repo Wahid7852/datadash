@@ -178,7 +178,7 @@ class UpdateManager(QThread):
         if not latest_version:
             return None
             
-        filename = f"datadash_v{latest_version}_{channel}{file_extension}"
+        filename = f"DataDash_v{latest_version}_{channel}{file_extension}"
         file_path = os.path.join(download_path, filename)
         
         return {
