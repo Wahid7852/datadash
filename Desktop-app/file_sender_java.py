@@ -22,6 +22,9 @@ class FileSenderJava(QThread):
     file_send_completed = pyqtSignal(str)
     transfer_finished = pyqtSignal()
     password = None
+    total_files = pyqtSignal(int)
+    files_completed = pyqtSignal(int)
+    files_pending = pyqtSignal(int)
 
     def __init__(self, ip_address, file_paths, password=None, receiver_data=None):
         super().__init__()
@@ -62,6 +65,10 @@ class FileSenderJava(QThread):
         # Reload config on each file transfer session
         self.config = self.config_manager.get_config()
         self.encryption_flag = self.config_manager.get_config()["encryption"]
+        total_files_count = len(self.file_paths)
+        self.total_files.emit(total_files_count)
+        completed_files_count = 0
+        pending_files_count = total_files_count
 
         try:
             for file_path in self.file_paths:
@@ -70,13 +77,29 @@ class FileSenderJava(QThread):
                         metadata_file_path = self.create_metadata(folder_path=file_path)
                         self.send_file(metadata_file_path, encrypted_transfer=False)
                         self.metadata_created = True
-                    self.send_folder(file_path)
+                    for root, dirs, files in os.walk(file_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            relative_path = os.path.relpath(file_path, folder_path)
+                            
+                            if self.encryption_flag:
+                                relative_path += ".crypt"
+                            
+                            self.send_file(file_path, relative_file_path=relative_path, encrypted_transfer=self.encryption_flag)
+                            completed_files_count += 1
+                            pending_files_count -= 1
+                            self.files_completed.emit(completed_files_count)
+                            self.files_pending.emit(pending_files_count)
                 else:
                     if not self.metadata_created:
                         metadata_file_path = self.create_metadata(file_paths=self.file_paths)
                         self.send_file(metadata_file_path, encrypted_transfer=False)
                         self.metadata_created = True
                     self.send_file(file_path, encrypted_transfer=self.encryption_flag)
+                    completed_files_count += 1
+                    pending_files_count -= 1
+                    self.files_completed.emit(completed_files_count)
+                    self.files_pending.emit(pending_files_count)
             
             # Send halt signal after all transfers complete
             logger.debug("Sent halt signal")
@@ -361,6 +384,21 @@ class SendAppJava(QWidget):
         self.style_label(self.status_label)
         content_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
+        self.total_files_label = QLabel("Total files: 0")
+        self.total_files_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.total_files_label)
+        content_layout.addWidget(self.total_files_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.completed_files_label = QLabel("Completed files: 0")
+        self.completed_files_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.completed_files_label)
+        content_layout.addWidget(self.completed_files_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.pending_files_label = QLabel("Pending files: 0")
+        self.pending_files_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.pending_files_label)
+        content_layout.addWidget(self.pending_files_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
          # Create 2 buttons for close and Transfer More Files
         # Keep them disabled until the file transfer is completed
         self.close_button = QPushButton('Close', self)
@@ -505,6 +543,9 @@ class SendAppJava(QWidget):
         self.file_sender_java.progress_update.connect(self.updateProgressBar)
         self.file_sender_java.file_send_completed.connect(self.fileSent)
         self.file_sender_java.transfer_finished.connect(self.onTransferFinished)
+        self.file_sender_java.total_files.connect(self.updateTotalFiles)
+        self.file_sender_java.files_completed.connect(self.updateCompletedFiles)
+        self.file_sender_java.files_pending.connect(self.updatePendingFiles)
         self.file_sender_java.start()
         #com.an.Datadash
 
@@ -525,6 +566,14 @@ class SendAppJava(QWidget):
         self.status_label.setText("File transfer completed!")
         self.status_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
 
+    def updateTotalFiles(self, total):
+        self.total_files_label.setText(f"Total files: {total}")
+
+    def updateCompletedFiles(self, completed):
+        self.completed_files_label.setText(f"Completed files: {completed}")
+
+    def updatePendingFiles(self, pending):
+        self.pending_files_label.setText(f"Pending files: {pending}")
 
     def closeEvent(self, event):
         try:
