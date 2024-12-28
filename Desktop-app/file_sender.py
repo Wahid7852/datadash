@@ -5,10 +5,10 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QPushButton, QListWidget, 
     QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem, QTextEdit, QLineEdit,
-    QHBoxLayout, QFrame
+    QHBoxLayout, QFrame, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QElapsedTimer, QTimer
 import os
 import socket
 import struct
@@ -23,6 +23,9 @@ class FileSender(QThread):
     file_send_completed = pyqtSignal(str)
     transfer_finished = pyqtSignal()
     file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
+    file_progress_update = pyqtSignal(str, int)  # file_path, progress
+    overall_progress_update = pyqtSignal(int)  # overall progress
+    estimated_time_update = pyqtSignal(str)  # estimated time
 
     password = None
 
@@ -36,6 +39,11 @@ class FileSender(QThread):
         self.receiver_data = receiver_data
         self.total_files = self.count_total_files()
         self.files_sent = 0
+        self.total_size = self.calculate_total_size()
+        self.sent_size = 0
+        self.start_timer = QElapsedTimer()
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_estimated_time)
 
     def count_total_files(self):
         total = 0
@@ -46,6 +54,17 @@ class FileSender(QThread):
             else:
                 total += 1
         return total
+
+    def calculate_total_size(self):
+        total_size = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    for file in files:
+                        total_size += os.path.getsize(os.path.join(root, file))
+            else:
+                total_size += os.path.getsize(path)
+        return total_size
 
     def initialize_connection(self):
         # Ensure previous socket is closed before re-binding
@@ -79,7 +98,13 @@ class FileSender(QThread):
 
         return True
 
-
+    def show_message_box(self, title, message):
+        msg_box = QMessageBox()
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.exec()
 
     def run(self):
         try:
@@ -94,6 +119,8 @@ class FileSender(QThread):
             return
         
         self.encryption_flag = self.config_manager.get_config()["encryption"]
+        self.start_timer.start()
+        self.update_timer.start(5000)  # Update every 5 seconds
 
         for file_path in self.file_paths:
             if os.path.isdir(file_path):
@@ -227,7 +254,10 @@ class FileSender(QThread):
                 data = f.read(CHUNK_SIZE_DESKTOP)
                 self.client_skt.sendall(data)
                 sent_size += len(data)
-                self.progress_update.emit(sent_size * 100 // file_size)
+                self.file_progress_update.emit(file_path, sent_size * 100 // file_size)
+                self.sent_size += len(data)
+                overall_progress = self.sent_size * 100 // self.total_size
+                self.overall_progress_update.emit(overall_progress)
 
         if count:
             self.files_sent += 1
@@ -239,6 +269,13 @@ class FileSender(QThread):
 
         return True
     
+    def update_estimated_time(self):
+        elapsed_time = self.start_timer.elapsed() / 1000  # in seconds
+        if self.sent_size > 0:
+            estimated_total_time = (elapsed_time / self.sent_size) * self.total_size
+            remaining_time = estimated_total_time - elapsed_time
+            self.estimated_time_update.emit(f"Estimated time remaining: {int(remaining_time)} seconds")
+
     def closeEvent(self, event):
         #close all sockets and unbind the sockets
         self.client_skt.close()
@@ -247,6 +284,7 @@ class FileSender(QThread):
     def stop(self):
         """Sets the stop signal to True and closes the socket if it's open."""
         self.stop_signal = True
+        self.update_timer.stop()
         if self.client_skt:
             try:
                 self.client_skt.close()
@@ -314,19 +352,27 @@ class SendApp(QWidget):
 
         content_layout.addLayout(button_layout)
 
-        # File path display
-        self.file_path_display = QTextEdit()
-        self.file_path_display.setReadOnly(True)
-        self.file_path_display.setStyleSheet("""
-            QTextEdit {
+        # File path display in table format
+        self.file_table = QTableWidget()
+        self.file_table.setColumnCount(2)
+        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_table.setHorizontalHeaderLabels(["File Path", "Progress"])
+        self.file_table.verticalHeader().setVisible(False)
+        self.file_table.horizontalHeader().setVisible(False)
+        self.file_table.setShowGrid(False)
+        self.file_table.setStyleSheet("""
+            QTableWidget {
                 background-color: #2f3642;
                 color: white;
                 border: 1px solid #4b5562;
                 border-radius: 5px;
+            }
+            QTableWidget::item {
                 padding: 5px;
             }
         """)
-        content_layout.addWidget(self.file_path_display)
+        content_layout.addWidget(self.file_table)
 
         # Password input (if encryption is enabled)
         if self.config_manager.get_config()["encryption"]:
@@ -380,6 +426,12 @@ class SendApp(QWidget):
         self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
         self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
         content_layout.addWidget(self.file_counts_label)
+
+        # Individual file progress bars
+        self.file_progress_bars = {}
+        self.file_progress_labels = {}
+        self.file_progress_layout = QVBoxLayout()
+        content_layout.addLayout(self.file_progress_layout)
 
         # Keep them disabled until the file transfer is completed
         self.close_button = self.create_styled_button_close('Close')  # Apply styling here
@@ -510,9 +562,9 @@ class SendApp(QWidget):
         documents= self.get_default_path()
         file_paths, _ = QFileDialog.getOpenFileNames(self, 'Open Files', documents)
         if file_paths:
-            self.file_path_display.clear()
+            self.file_table.setRowCount(0)
             for file_path in file_paths:
-                self.file_path_display.append(file_path)
+                self.add_file_to_table(file_path)
             self.file_paths = file_paths
             self.checkReadyToSend()
 
@@ -520,8 +572,8 @@ class SendApp(QWidget):
         documents= self.get_default_path()
         folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder', documents)
         if folder_path:
-            self.file_path_display.clear()
-            self.file_path_display.append(folder_path)
+            self.file_table.setRowCount(0)
+            self.add_file_to_table(folder_path)
             self.file_paths = [folder_path]
             self.checkReadyToSend()
 
@@ -540,6 +592,29 @@ class SendApp(QWidget):
         if self.file_paths:
             self.send_button.setVisible(True)
             #com.an.Datadash
+
+    def add_file_to_table(self, file_path):
+        row_position = self.file_table.rowCount()
+        self.file_table.insertRow(row_position)
+        file_item = QTableWidgetItem(file_path)
+        file_item.setFlags(file_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        self.file_table.setItem(row_position, 0, file_item)
+        progress_bar = QProgressBar()
+        progress_bar.setFixedWidth(150)  # Adjust the width of the progress bar
+        progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #2f3642;
+                color: white;
+                border: 1px solid #4b5562;
+                border-radius: 5px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+            }
+        """)
+        self.file_table.setCellWidget(row_position, 1, progress_bar)
+        self.file_progress_bars[file_path] = progress_bar
 
     def sendSelectedFiles(self):
         password = None
@@ -602,10 +677,12 @@ class SendApp(QWidget):
 
         self.file_sender = FileSender(self.ip_address, self.file_paths, password, self.receiver_data)
         self.progress_bar.setVisible(True)
-        self.file_sender.progress_update.connect(self.updateProgressBar)
         self.file_sender.file_send_completed.connect(self.fileSent)
         self.file_sender.transfer_finished.connect(self.onTransferFinished)
         self.file_sender.file_count_update.connect(self.updateFileCounts)
+        self.file_sender.file_progress_update.connect(self.updateFileProgressBar)
+        self.file_sender.overall_progress_update.connect(self.updateOverallProgressBar)
+        self.file_sender.estimated_time_update.connect(self.updateEstimatedTime)
         self.file_sender.start()
         #com.an.Datadash
 
@@ -617,6 +694,17 @@ class SendApp(QWidget):
 
     def updateFileCounts(self, total_files, files_sent, files_pending):
         self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
+
+    def updateFileProgressBar(self, file_path, value):
+        if file_path in self.file_progress_bars:
+            self.file_progress_bars[file_path].setValue(value)
+
+    def updateOverallProgressBar(self, value):
+        self.progress_bar.setValue(value)
+
+    def updateEstimatedTime(self, time_text):
+        self.status_label.setText(time_text)
+        self.status_label.setStyleSheet("color: white; font-size: 18px; background-color: transparent;")
 
     def onTransferFinished(self):
         self.close_button.setVisible(True)
