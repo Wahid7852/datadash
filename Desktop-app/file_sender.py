@@ -15,7 +15,7 @@ import struct
 from constant import ConfigManager  # Updated import
 from loges import logger
 from crypt_handler import encrypt_file
-from time import sleep
+from time import sleep, time  # Add import for time
 from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
 
 class FileSender(QThread):
@@ -23,6 +23,7 @@ class FileSender(QThread):
     file_send_completed = pyqtSignal(str)
     transfer_finished = pyqtSignal()
     file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
+    telemetry_update = pyqtSignal(float, float, float)  # speed, time_remaining, total_time
 
     password = None
 
@@ -46,6 +47,14 @@ class FileSender(QThread):
             else:
                 total += 1
         return total
+
+    def show_message_box(self, title, message):
+        msg_box = QMessageBox()
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.exec()
 
     def initialize_connection(self):
         # Ensure previous socket is closed before re-binding
@@ -220,14 +229,21 @@ class FileSender(QThread):
         self.client_skt.send(struct.pack('<Q', file_name_size))
         self.client_skt.send(relative_file_path.encode('utf-8'))
         self.client_skt.send(struct.pack('<Q', file_size))
-        #com.an.Datadash
 
+        start_time = time()  # Start time for telemetry
         with open(file_path, 'rb') as f:
             while sent_size < file_size:
                 data = f.read(CHUNK_SIZE_DESKTOP)
                 self.client_skt.sendall(data)
                 sent_size += len(data)
                 self.progress_update.emit(sent_size * 100 // file_size)
+
+                # Calculate telemetry
+                elapsed_time = time() - start_time
+                speed = sent_size / elapsed_time if elapsed_time > 0 else 0
+                time_remaining = (file_size - sent_size) / speed if speed > 0 else 0
+                total_time = elapsed_time + time_remaining
+                self.telemetry_update.emit(speed, time_remaining, total_time)
 
         if count:
             self.files_sent += 1
@@ -380,6 +396,11 @@ class SendApp(QWidget):
         self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
         self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
         content_layout.addWidget(self.file_counts_label)
+
+        # Telemetry label
+        self.telemetry_label = QLabel("Speed: 0 B/s | Time remaining: 0 s | Total time: 0 s")
+        self.style_label(self.telemetry_label)
+        content_layout.addWidget(self.telemetry_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Keep them disabled until the file transfer is completed
         self.close_button = self.create_styled_button_close('Close')  # Apply styling here
@@ -606,6 +627,7 @@ class SendApp(QWidget):
         self.file_sender.file_send_completed.connect(self.fileSent)
         self.file_sender.transfer_finished.connect(self.onTransferFinished)
         self.file_sender.file_count_update.connect(self.updateFileCounts)
+        self.file_sender.telemetry_update.connect(self.updateTelemetry)
         self.file_sender.start()
         #com.an.Datadash
 
@@ -617,6 +639,9 @@ class SendApp(QWidget):
 
     def updateFileCounts(self, total_files, files_sent, files_pending):
         self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
+
+    def updateTelemetry(self, speed, time_remaining, total_time):
+        self.telemetry_label.setText(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
     def onTransferFinished(self):
         self.close_button.setVisible(True)
