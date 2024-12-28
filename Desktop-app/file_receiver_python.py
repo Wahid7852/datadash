@@ -14,6 +14,7 @@ from crypt_handler import decrypt_file, Decryptor
 import time
 import shutil
 from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
+from time import time  # Add import for time
 
 class ReceiveWorkerPython(QThread):
     progress_update = pyqtSignal(int)
@@ -22,6 +23,8 @@ class ReceiveWorkerPython(QThread):
     receiving_started = pyqtSignal()
     transfer_finished = pyqtSignal()
     password = None
+    telemetry_update = pyqtSignal(float, float, float)  # speed, time_remaining, total_time
+    connection_failed = pyqtSignal(str)  # Signal to emit connection failure
 
     def __init__(self, client_ip):
         super().__init__()
@@ -73,9 +76,11 @@ class ReceiveWorkerPython(QThread):
                 time.sleep(1)
                 self.initialize_connection()
             else:
+                self.connection_failed.emit(f"Failed to initialize server: {str(e)}")
                 raise
         except Exception as e:
             logger.error("Failed to initialize server: %s", str(e))
+            self.connection_failed.emit(f"Failed to initialize server: {str(e)}")
             raise
 
     def accept_connection(self):
@@ -84,16 +89,19 @@ class ReceiveWorkerPython(QThread):
         try:
             # Accept a connection from a client
             self.client_skt, self.client_address = self.server_skt.accept()
-            print(f"Connected to {self.client_address}")
+            logger.debug(f"Connected to {self.client_address}")
         except Exception as e:
             error_message = f"Failed to accept connection: {str(e)}"
             logger.error(error_message)
-            self.error_occurred.emit("Connection Error", error_message, "")
+            self.connection_failed.emit(error_message)
             return None
 
     def run(self):
         self.initialize_connection()
-        self.accept_connection()
+        while not self.client_skt:
+            self.accept_connection()
+            if not self.client_skt:
+                time.sleep(1)  # Wait before retrying
         if self.client_skt:
             self.receiving_started.emit()
             self.receive_files()
@@ -154,6 +162,7 @@ class ReceiveWorkerPython(QThread):
                 file_size = struct.unpack('<Q', file_size_data)[0]
                 logger.debug("Receiving file %s, size: %d bytes", file_name, file_size)
 
+                start_time = time()  # Start time for telemetry
                 received_size = 0
 
                 # Check if it's metadata
@@ -208,6 +217,13 @@ class ReceiveWorkerPython(QThread):
                             received_size += len(data)
                             logger.debug("Received %d/%d bytes for file %s", received_size, file_size, file_name)
                             self.progress_update.emit(received_size * 100 // file_size)
+
+                            # Calculate telemetry
+                            elapsed_time = time() - start_time
+                            speed = received_size / elapsed_time if elapsed_time > 0 else 0
+                            time_remaining = (file_size - received_size) / speed if speed > 0 else 0
+                            total_time = elapsed_time + time_remaining
+                            self.telemetry_update.emit(speed, time_remaining, total_time)
 
             except Exception as e:
                 logger.error("Error during file reception: %s", str(e))
@@ -373,6 +389,8 @@ class ReceiveAppP(QWidget):
         self.file_receiver.decrypt_signal.connect(self.decryptor_init)
         self.file_receiver.receiving_started.connect(self.show_progress_bar)
         self.file_receiver.transfer_finished.connect(self.onTransferFinished)
+        self.file_receiver.telemetry_update.connect(self.updateTelemetry)
+        self.file_receiver.connection_failed.connect(self.show_error_message)
 
         # Start the typewriter effect
         self.typewriter_timer = QTimer(self)
@@ -446,6 +464,11 @@ class ReceiveAppP(QWidget):
         """)
         layout.addWidget(self.progress_bar)
 
+        # Telemetry label
+        self.telemetry_label = QLabel("Speed: 0 B/s | Time remaining: 0 s | Total time: 0 s")
+        self.style_label(self.telemetry_label)
+        layout.addWidget(self.telemetry_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
         # Open directory button
         self.open_dir_button = self.create_styled_button('Open Receiving Directory')
         self.open_dir_button.clicked.connect(self.open_receiving_directory)
@@ -465,6 +488,16 @@ class ReceiveAppP(QWidget):
         layout.addWidget(self.mainmenu_button)
 
         self.setLayout(layout)
+
+    def style_label(self, label):
+        label.setStyleSheet("""
+            QLabel {
+                color: white;
+                font-size: 16px;
+                background: transparent;
+                border: none;
+            }
+        """)
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_Escape:
@@ -557,6 +590,9 @@ class ReceiveAppP(QWidget):
 
     def updateProgressBar(self, value):
         self.progress_bar.setValue(value)
+
+    def updateTelemetry(self, speed, time_remaining, total_time):
+        self.telemetry_label.setText(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
     def onTransferFinished(self):
         self.label.setText("File received successfully!")
@@ -659,8 +695,8 @@ class ReceiveAppP(QWidget):
         else:
             logger.error("No receiving directory configured.")
 
-    def show_error_message(self, title, message, detailed_text):
-        QMessageBox.critical(self, title, message)
+    def show_error_message(self, message):
+        QMessageBox.critical(self, "Connection Error", message)
 
     def closeEvent(self, event):
         """Handle application close event"""
@@ -705,7 +741,8 @@ class ReceiveAppP(QWidget):
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
-    receive_app = ReceiveAppP()
+    # Ensure to pass the required parameters when initializing ReceiveAppP
+    receive_app = ReceiveAppP(client_ip="127.0.0.1", sender_os="Windows")
     receive_app.show()
     app.exec()
     #com.an.Datadash
