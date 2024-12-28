@@ -14,7 +14,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from constant import ConfigManager
 from loges import logger
 from crypt_handler import encrypt_file
-from time import sleep
+from time import sleep, time
 from portsss import RECEIVER_DATA_ANDROID,CHUNK_SIZE_ANDROID
 
 class FileSenderJava(QThread):
@@ -216,6 +216,7 @@ class FileSenderJava(QThread):
 
             # Send file data with progress updates
             sent_size = 0
+            start_time = time()  # Start time for telemetry
             with open(file_path, 'rb') as f:
                 while sent_size < file_size:
                     chunk = f.read(CHUNK_SIZE_ANDROID)
@@ -225,6 +226,13 @@ class FileSenderJava(QThread):
                     sent_size += len(chunk)
                     progress = int(sent_size * 100 / file_size)
                     self.progress_update.emit(progress)
+
+                    # Calculate telemetry
+                    elapsed_time = time() - start_time
+                    speed = sent_size / elapsed_time if elapsed_time > 0 else 0
+                    time_remaining = (file_size - sent_size) / speed if speed > 0 else 0
+                    total_time = elapsed_time + time_remaining
+                    logger.info(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
             # Clean up encrypted file if it was created
             if encrypted_transfer:
