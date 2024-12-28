@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem, QTextEdit, QLineEdit,
     QHBoxLayout, QFrame
 )
+from PyQt5.QtWidgets import QFileDialog
 from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 import os
@@ -313,7 +314,7 @@ class SendApp(QWidget):
         #com.an.Datadash
 
         content_layout.addLayout(button_layout)
-
+        
         # File path display
         self.file_path_display = QTextEdit()
         self.file_path_display.setReadOnly(True)
@@ -327,7 +328,7 @@ class SendApp(QWidget):
             }
         """)
         content_layout.addWidget(self.file_path_display)
-
+        
         # Password input (if encryption is enabled)
         if self.config_manager.get_config()["encryption"]:
             password_layout = QHBoxLayout()
@@ -506,15 +507,34 @@ class SendApp(QWidget):
         self.setGeometry(x, y, window_width, window_height)
         #com.an.Datadash
 
-    def selectFile(self):
-        documents= self.get_default_path()
-        file_paths, _ = QFileDialog.getOpenFileNames(self, 'Open Files', documents)
-        if file_paths:
-            self.file_path_display.clear()
-            for file_path in file_paths:
-                self.file_path_display.append(file_path)
-            self.file_paths = file_paths
-            self.checkReadyToSend()
+def selectFile(self):
+    documents = self.get_default_path()
+    file_paths, _ = QFileDialog.getOpenFileNames(self, 'Open Files', documents)
+    if file_paths:
+        self.file_path_display.clear()
+        for file_path in file_paths:
+            try:
+                # Get file size in bytes
+                file_size = os.path.getsize(file_path)
+                
+                # Convert to human-readable format
+                if file_size < 1024:  # Less than 1KB
+                    size_str = f"{file_size} B"
+                elif file_size < 1024*1024:  # Less than 1MB
+                    size_str = f"{file_size/1024:.1f} KB"
+                elif file_size < 1024*1024*1024:  # Less than 1GB
+                    size_str = f"{file_size/(1024*1024):.1f} MB"
+                else:  # GB or larger
+                    size_str = f"{file_size/(1024*1024*1024):.1f} GB"
+                
+                # Display file path with size
+                self.file_path_display.append(f"{file_path}    {size_str}")
+            except OSError:
+                self.file_path_display.append(f"{file_path}    Size unknown")
+                
+        self.file_paths = file_paths
+        self.checkReadyToSend()
+            
 
     def selectFolder(self):
         documents= self.get_default_path()
