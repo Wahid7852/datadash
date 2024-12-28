@@ -224,6 +224,7 @@ class ReceiveWorkerPython(QThread):
                             time_remaining = (file_size - received_size) / speed if speed > 0 else 0
                             total_time = elapsed_time + time_remaining
                             self.telemetry_update.emit(speed, time_remaining, total_time)
+                            logger.info(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
             except Exception as e:
                 logger.error("Error during file reception: %s", str(e))
