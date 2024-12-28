@@ -244,6 +244,10 @@ class Broadcast(QWidget):
         self.animation_timer.start(50)  # Update every 50ms
         self.initUI()
         self.discover_devices()
+        self.send_app = None
+        self.send_app_java = None
+        self.send_app_swift = None
+        self.main_window = None
 
     def initUI(self):
         main_layout = QVBoxLayout()
@@ -543,6 +547,24 @@ class Broadcast(QWidget):
     def on_config_updated(self, config):
         """Handler for config updates"""
         self.current_config = config
+
+    def cleanup(self):
+        # Stop broadcast worker thread
+        if self.broadcast_worker:
+            self.broadcast_worker.stop()
+            self.broadcast_worker.quit()
+            self.broadcast_worker.wait()
+
+        # Close all child windows
+        for window in [self.send_app, self.send_app_java, self.send_app_swift, self.main_window]:
+            if window:
+                window.close()
+
+    def closeEvent(self, event):
+        logger.info("Shutting down Broadcast window")
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

@@ -101,21 +101,19 @@ class NetworkCheck(QThread):
 
     def check_network_type_windows(self):
         try:
-            # Modified PowerShell command to output in a more reliable format
+            # Simpler PowerShell command that works on both Windows 10 and 11
             cmd = '''
-            $result = Get-NetAdapter | 
-            Where-Object { $_.Status -eq 'Up' } | 
-            ForEach-Object { 
-                $adapter = $_
-                $profile = Get-NetConnectionProfile -InterfaceIndex $adapter.ifIndex
-                [PSCustomObject]@{
-                    Name = $adapter.Name
-                    Type = $adapter.MediaType
-                    NetworkCategory = $profile.NetworkCategory.ToString()
+            $connections = @()
+            Get-NetConnectionProfile | ForEach-Object {
+                $connections += [PSCustomObject]@{
+                    Name = (Get-NetAdapter -InterfaceIndex $_.InterfaceIndex).Name
+                    NetworkCategory = $_.NetworkCategory.ToString()
+                    Status = (Get-NetAdapter -InterfaceIndex $_.InterfaceIndex).Status
                 }
             }
-            if ($result) {
-                ConvertTo-Json -InputObject $result -Compress
+            $activeConnections = $connections | Where-Object { $_.Status -eq 'Up' }
+            if ($activeConnections) {
+                $activeConnections | ConvertTo-Json
             }
             '''
             
@@ -123,7 +121,7 @@ class NetworkCheck(QThread):
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
 
-            result = subprocess.run(['powershell', '-Command', cmd], 
+            result = subprocess.run(['powershell', '-ExecutionPolicy', 'Bypass', '-Command', cmd], 
                                  capture_output=True, 
                                  text=True,
                                  startupinfo=startupinfo)
@@ -139,7 +137,7 @@ class NetworkCheck(QThread):
                     for network in network_data:
                         logger.info(f"Network interface: {network.get('Name')} - Category: {network.get('NetworkCategory')}")
                         if network.get('NetworkCategory', '').lower() == 'public':
-                            logger.warning(f"Public network detected on interface: {network.get('Name')} ({network.get('Type')})")
+                            logger.warning(f"Public network detected on interface: {network.get('Name')}")
                             return 'Public'
                     
                     logger.info("All network connections are Private")
@@ -166,6 +164,38 @@ class MainApp(QWidget):
         self.skip_version_check = skip_version_check
         self.network_thread = NetworkCheck()
         self.network_thread.start() #comment out after testing is over, lot of overhead on windows
+        self.version_thread = None
+        self.broadcast_app = None
+        self.receive_app = None
+        self.preferences_app = None
+
+    def cleanup(self):
+        # Stop all running threads
+        if self.network_thread and self.network_thread.isRunning():
+            self.network_thread.quit()
+            self.network_thread.wait()
+
+        if self.version_thread and self.version_thread.isRunning():
+            self.version_thread.quit()
+            self.version_thread.wait()
+
+        # Close all child windows
+        if self.broadcast_app:
+            self.broadcast_app.close()
+        if self.receive_app:
+            self.receive_app.close()
+        if self.preferences_app:
+            self.preferences_app.close()
+
+        # Cleanup config manager
+        if hasattr(self, 'config_manager'):
+            self.config_manager.quit()
+            self.config_manager.wait()
+
+    def closeEvent(self, event):
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
 
     def on_config_ready(self):
         self.initUI(self.skip_version_check)
@@ -557,9 +587,9 @@ class MainApp(QWidget):
         if reply == QMessageBox.StandardButton.Open:
             self.openSettings()
 
-
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(True)
     main = MainApp()
     main.show()
     sys.exit(app.exec())

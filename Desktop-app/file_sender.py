@@ -268,6 +268,33 @@ class SendApp(QWidget):
         self.file_paths = []
         self.initUI()
         self.progress_bar.setVisible(False)
+        self.main_window = None
+        self.file_sender = None
+
+    def cleanup(self):
+        logger.info("Cleaning up SendApp resources")
+        
+        # Stop file sender thread
+        if self.file_sender and self.file_sender.isRunning():
+            self.file_sender.stop()
+            self.file_sender.wait()
+
+        # Close main window if it exists
+        if self.main_window:
+            self.main_window.close()
+
+        # Close any open sockets
+        if hasattr(self, 'client_skt'):
+            try:
+                self.client_skt.close()
+            except:
+                pass
+
+    def closeEvent(self, event):
+        logger.info("Shutting down SendApp")
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
 
     def on_config_updated(self, config):
         self.current_config = config

@@ -381,6 +381,7 @@ class ReceiveAppP(QWidget):
 
         # Start the file receiving process directly on the main thread
         self.file_receiver.start()
+        self.main_window = None
 
     def initUI(self):
         self.setWindowTitle('Receive File')
@@ -661,6 +662,39 @@ class ReceiveAppP(QWidget):
 
     def show_error_message(self, title, message, detailed_text):
         QMessageBox.critical(self, title, message)
+
+    def cleanup(self):
+        logger.info("Cleaning up ReceiveAppP resources")
+        
+        # Stop typewriter effect
+        if hasattr(self, 'typewriter_timer'):
+            self.typewriter_timer.stop()
+            
+        # Stop file receiver and cleanup
+        if hasattr(self, 'file_receiver'):
+            self.file_receiver.stop()
+            self.file_receiver.close_connection()
+            
+            # Ensure thread is properly terminated
+            if not self.file_receiver.wait(3000):  # Wait up to 3 seconds
+                self.file_receiver.terminate()
+                self.file_receiver.wait()
+            
+        # Stop any running movies
+        if hasattr(self, 'receiving_movie'):
+            self.receiving_movie.stop()
+        if hasattr(self, 'success_movie'):
+            self.success_movie.stop()
+
+        # Close main window if it exists
+        if self.main_window:
+            self.main_window.close()
+
+    def closeEvent(self, event):
+        logger.info("Shutting down ReceiveAppP")
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
 
     def closeEvent(self, event):
         """Handle application close event"""
