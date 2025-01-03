@@ -1,5 +1,6 @@
 Aarya:
-When file is selected to be sent show the size of the file that has been selected in the window- python
+Add X button on individual files for android and python so the user can deselect a fike if select by nistake instead of completely selecting again- python
+Add confirmation dialog which ask the receiver if they are sure to connect or not, give prompt to sender that the connection was cancelled-python
 File preview mode which only downloads and views the file without storing it (files smaller than 100mb)- python
 
 
@@ -14,13 +15,16 @@ Can give priority to some file from new optional window if its needed urgently w
 
 
 Samay:
+Linkedin post
+implement individual progress bars and table -android
 Send more files button and go to main menu button -android
 
 
 Sushant:
 Advaned telemetry which shows send/receive speed approx time remaining and total time- python
 When sending a folder show the number of total files, number of files completed and number of files remaining- python
+Add confirmation dialog which ask the user if they are sure to receive the file or not, give prompt to sender that file sharing was cancelled-python
 
 
 Yash:
-Optional Encryption -android
+Manual Discovery using IP address mode -Python and android

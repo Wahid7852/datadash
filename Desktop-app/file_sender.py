@@ -5,11 +5,10 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QPushButton, QListWidget, 
     QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem, QTextEdit, QLineEdit,
-    QHBoxLayout, QFrame
+    QHBoxLayout, QFrame, QTableWidget, QTableWidgetItem, QHeaderView, QStyledItemDelegate
 )
-from PyQt5.QtWidgets import QFileDialog
 from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence
-from PyQt6.QtCore import QThread, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, Qt, QElapsedTimer, QTimer
 import os
 import socket
 import struct
@@ -19,11 +18,44 @@ from crypt_handler import encrypt_file
 from time import sleep
 from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
 
+class ProgressBarDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        if index.column() == 2:  # Progress column
+            progress = index.data(Qt.ItemDataRole.UserRole)
+            if progress is not None:
+                progressBar = QProgressBar()
+                progressBar.setStyleSheet("""
+                    QProgressBar {
+                        background-color: #2f3642;
+                        color: white;
+                        border: 1px solid #4b5562;
+                        border-radius: 5px;
+                        text-align: center;
+                    }
+                    QProgressBar::chunk {
+                        background-color: #4CAF50;
+                    }
+                """)
+                progressBar.setGeometry(option.rect)
+                progressBar.setValue(progress)
+                progressBar.setTextVisible(True)
+                painter.save()
+                painter.translate(option.rect.topLeft())
+                progressBar.render(painter)
+                painter.restore()
+            return
+        super().paint(painter, option, index)
+
+    def createEditor(self, parent, option, index):
+        return None  # Disable editing
+
 class FileSender(QThread):
     progress_update = pyqtSignal(int)
     file_send_completed = pyqtSignal(str)
     transfer_finished = pyqtSignal()
     file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
+    file_progress_update = pyqtSignal(str, int)  # file_path, progress
+    overall_progress_update = pyqtSignal(int)  # overall progress
 
     password = None
 
@@ -37,6 +69,8 @@ class FileSender(QThread):
         self.receiver_data = receiver_data
         self.total_files = self.count_total_files()
         self.files_sent = 0
+        self.total_size = self.calculate_total_size()
+        self.sent_size = 0
 
     def count_total_files(self):
         total = 0
@@ -47,6 +81,17 @@ class FileSender(QThread):
             else:
                 total += 1
         return total
+
+    def calculate_total_size(self):
+        total_size = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    for file in files:
+                        total_size += os.path.getsize(os.path.join(root, file))
+            else:
+                total_size += os.path.getsize(path)
+        return total_size
 
     def initialize_connection(self):
         # Ensure previous socket is closed before re-binding
@@ -80,7 +125,13 @@ class FileSender(QThread):
 
         return True
 
-
+    def show_message_box(self, title, message):
+        msg_box = QMessageBox()
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg_box.exec()
 
     def run(self):
         try:
@@ -181,23 +232,61 @@ class FileSender(QThread):
             
     def send_folder(self, folder_path):
         print("Sending folder")
-        #com.an.Datadash
-        
-        if not self.metadata_created:
-            metadata_file_path = self.create_metadata(folder_path=folder_path)
-            metadata = json.loads(open(metadata_file_path).read())
-            self.send_file(metadata_file_path, count=False)
+        try:
+            if not self.metadata_created:
+                # Create and send metadata first
+                metadata_file_path = self.create_metadata(folder_path=folder_path)
+                with open(metadata_file_path, 'rb') as f:
+                    metadata_content = f.read()
+                
+                # Send metadata file with proper headers
+                encryption_flag = 'encyp: f'
+                file_name = 'metadata.json'
+                file_name_size = len(file_name.encode())
+                file_size = len(metadata_content)
 
-        for file_info in metadata:
-            relative_file_path = file_info['path']
-            file_path = os.path.join(folder_path, relative_file_path)
-            if not relative_file_path.endswith('.delete'):
-                if file_info['size'] > 0:
-                    if self.encryption_flag:
-                        relative_file_path += ".crypt"
-                    self.send_file(file_path, relative_file_path=relative_file_path, encrypted_transfer=self.encryption_flag)
+                # Send headers
+                self.client_skt.send(encryption_flag.encode())
+                self.client_skt.send(struct.pack('<Q', file_name_size))
+                self.client_skt.send(file_name.encode('utf-8'))
+                self.client_skt.send(struct.pack('<Q', file_size))
 
-        os.remove(metadata_file_path)
+                # Send metadata content in chunks
+                sent = 0
+                while sent < file_size:
+                    chunk = metadata_content[sent:sent + CHUNK_SIZE_DESKTOP]
+                    self.client_skt.send(chunk)
+                    sent += len(chunk)
+
+                # Read metadata for processing
+                metadata = json.loads(open(metadata_file_path).read())
+
+                # Calculate total folder size and prepare files
+                folder_total_size = sum(file_info['size'] for file_info in metadata 
+                                     if not file_info['path'].endswith('.delete') and file_info['size'] > 0)
+                folder_sent_size = 0
+
+                # Send each file
+                for file_info in metadata:
+                    if not file_info['path'].endswith('.delete') and file_info['size'] > 0:
+                        relative_file_path = file_info['path']
+                        file_path = os.path.join(folder_path, relative_file_path)
+                        if self.encryption_flag:
+                            relative_file_path += ".crypt"
+                        
+                        # Send the actual file
+                        if os.path.exists(file_path):
+                            self.send_file(file_path, relative_file_path=relative_file_path, 
+                                         encrypted_transfer=self.encryption_flag)
+                            folder_sent_size += file_info['size']
+                            folder_progress = folder_sent_size * 100 // folder_total_size
+                            self.file_progress_update.emit(folder_path, folder_progress)
+
+                os.remove(metadata_file_path)
+
+        except Exception as e:
+            logger.error(f"Error in send_folder: {str(e)}")
+            raise
 
     def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False, count=True):
         logger.debug("Sending file: %s", file_path)
@@ -228,7 +317,10 @@ class FileSender(QThread):
                 data = f.read(CHUNK_SIZE_DESKTOP)
                 self.client_skt.sendall(data)
                 sent_size += len(data)
-                self.progress_update.emit(sent_size * 100 // file_size)
+                self.file_progress_update.emit(file_path, sent_size * 100 // file_size)
+                self.sent_size += len(data)
+                overall_progress = self.sent_size * 100 // self.total_size
+                self.overall_progress_update.emit(overall_progress)
 
         if count:
             self.files_sent += 1
@@ -239,7 +331,7 @@ class FileSender(QThread):
             os.remove(file_path)
 
         return True
-    
+
     def closeEvent(self, event):
         #close all sockets and unbind the sockets
         self.client_skt.close()
@@ -266,6 +358,8 @@ class SendApp(QWidget):
         self.device_name = device_name
         self.receiver_data = receiver_data
         self.file_paths = []
+        self.file_progress_bars = {}  # Initialize the dictionary for progress bars
+        self.send_button = None  # Initialize the send button reference
         self.initUI()
         self.progress_bar.setVisible(False)
         self.main_window = None
@@ -338,24 +432,39 @@ class SendApp(QWidget):
         self.folder_button = self.create_styled_button('Select Folder')
         self.folder_button.clicked.connect(self.selectFolder)
         button_layout.addWidget(self.folder_button)
-        #com.an.Datadash
 
         content_layout.addLayout(button_layout)
-        
-        # File path display
-        self.file_path_display = QTextEdit()
-        self.file_path_display.setReadOnly(True)
-        self.file_path_display.setStyleSheet("""
-            QTextEdit {
+
+        # Files table
+        self.file_table = QTableWidget()
+        self.file_table.setColumnCount(3)
+        self.file_table.setHorizontalHeaderLabels(['File Name', 'Size', 'Progress'])
+        self.file_table.setStyleSheet("""
+            QTableWidget {
                 background-color: #2f3642;
                 color: white;
                 border: 1px solid #4b5562;
-                border-radius: 5px;
+                gridline-color: #4b5562;
+            }
+            QHeaderView::section {
+                background-color: #1f242d;
+                color: white;
                 padding: 5px;
+                border: 1px solid #4b5562;
             }
         """)
-        content_layout.addWidget(self.file_path_display)
-        
+        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.file_table.setColumnWidth(2, 200)
+        self.file_table.setItemDelegate(ProgressBarDelegate())
+        content_layout.addWidget(self.file_table)
+
+        # Add file counts label before the progress bar
+        self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
+        self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
+        content_layout.addWidget(self.file_counts_label)
+
         # Password input (if encryption is enabled)
         if self.config_manager.get_config()["encryption"]:
             password_layout = QHBoxLayout()
@@ -377,13 +486,7 @@ class SendApp(QWidget):
             password_layout.addWidget(self.password_input)
             content_layout.addLayout(password_layout)
 
-        # Send button
-        self.send_button = self.create_styled_button('Send Files')
-        self.send_button.setVisible(False)
-        self.send_button.clicked.connect(self.sendSelectedFiles)
-        content_layout.addWidget(self.send_button, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        # Progress bar
+        # Overall progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet("""
             QProgressBar {
@@ -399,28 +502,31 @@ class SendApp(QWidget):
         """)
         content_layout.addWidget(self.progress_bar)
 
-        # Status label
+        # Add status label before the buttons
         self.status_label = QLabel("")
-        self.style_label(self.status_label)
+        self.status_label.setStyleSheet("color: white; font-size: 18px; background-color: transparent;")
         content_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Add label for file counts
-        self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
-        self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
-        content_layout.addWidget(self.file_counts_label)
+        # Send button
+        self.send_button = self.create_styled_button('Send Files')
+        self.send_button.setVisible(False)
+        self.send_button.clicked.connect(self.sendSelectedFiles)
+        content_layout.addWidget(self.send_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Keep them disabled until the file transfer is completed
-        self.close_button = self.create_styled_button_close('Close')  # Apply styling here
+        # Close and Main Menu buttons
+        buttons_layout = QHBoxLayout()
+        
+        self.close_button = self.create_styled_button_close('Close')
         self.close_button.setVisible(False)
         self.close_button.clicked.connect(self.close)
-        content_layout.addWidget(self.close_button)
-        #com.an.Datadash
+        buttons_layout.addWidget(self.close_button)
 
-        self.mainmenu_button = self.create_styled_button_close('Main Menu')  # Apply styling here
+        self.mainmenu_button = self.create_styled_button_close('Main Menu')
         self.mainmenu_button.setVisible(False)
         self.mainmenu_button.clicked.connect(self.openMainWindow)
-        content_layout.addWidget(self.mainmenu_button)
+        buttons_layout.addWidget(self.mainmenu_button)
 
+        content_layout.addLayout(buttons_layout)
         main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
 
@@ -534,41 +640,22 @@ class SendApp(QWidget):
         self.setGeometry(x, y, window_width, window_height)
         #com.an.Datadash
 
-def selectFile(self):
-    documents = self.get_default_path()
-    file_paths, _ = QFileDialog.getOpenFileNames(self, 'Open Files', documents)
-    if file_paths:
-        self.file_path_display.clear()
-        for file_path in file_paths:
-            try:
-                # Get file size in bytes
-                file_size = os.path.getsize(file_path)
-                
-                # Convert to human-readable format
-                if file_size < 1024:  # Less than 1KB
-                    size_str = f"{file_size} B"
-                elif file_size < 1024*1024:  # Less than 1MB
-                    size_str = f"{file_size/1024:.1f} KB"
-                elif file_size < 1024*1024*1024:  # Less than 1GB
-                    size_str = f"{file_size/(1024*1024):.1f} MB"
-                else:  # GB or larger
-                    size_str = f"{file_size/(1024*1024*1024):.1f} GB"
-                
-                # Display file path with size
-                self.file_path_display.append(f"{file_path}    {size_str}")
-            except OSError:
-                self.file_path_display.append(f"{file_path}    Size unknown")
-                
-        self.file_paths = file_paths
-        self.checkReadyToSend()
-            
+    def selectFile(self):
+        documents= self.get_default_path()
+        file_paths, _ = QFileDialog.getOpenFileNames(self, 'Open Files', documents)
+        if file_paths:
+            self.file_table.setRowCount(0)
+            for file_path in file_paths:
+                self.add_file_to_table(file_path)
+            self.file_paths = file_paths
+            self.checkReadyToSend()
 
     def selectFolder(self):
         documents= self.get_default_path()
         folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder', documents)
         if folder_path:
-            self.file_path_display.clear()
-            self.file_path_display.append(folder_path)
+            self.file_table.setRowCount(0)
+            self.add_file_to_table(folder_path)
             self.file_paths = [folder_path]
             self.checkReadyToSend()
 
@@ -587,6 +674,72 @@ def selectFile(self):
         if self.file_paths:
             self.send_button.setVisible(True)
             #com.an.Datadash
+
+    def get_folder_size(self, folder_path):
+        """Calculate total size of a folder"""
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(folder_path):
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+                if os.path.exists(file_path):
+                    total_size += os.path.getsize(file_path)
+        return total_size
+
+    def add_file_to_table(self, file_path):
+        row_position = self.file_table.rowCount()
+        self.file_table.insertRow(row_position)
+        
+        if os.path.isdir(file_path):
+            # For folders, just show the folder name and total size
+            folder_name = os.path.basename(file_path)
+            name_item = QTableWidgetItem(folder_name)
+            name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            name_item.setToolTip(file_path)  # Show full path on hover
+            self.file_table.setItem(row_position, 0, name_item)
+            
+            # Calculate folder size and count files
+            total_size = self.get_folder_size(file_path)
+            file_count = sum([len(files) for _, _, files in os.walk(file_path)])
+            
+            # Format size string with file count
+            if total_size >= 1024 * 1024 * 1024:  # GB
+                size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+            elif total_size >= 1024 * 1024:  # MB
+                size_str = f"{total_size / (1024 * 1024):.2f} MB"
+            elif total_size >= 1024:  # KB
+                size_str = f"{total_size / 1024:.2f} KB"
+            else:  # Bytes
+                size_str = f"{total_size} B"
+            
+            size_str += f" ({file_count} items)"
+        else:
+            # For single files, show filename and size
+            name_item = QTableWidgetItem(os.path.basename(file_path))
+            name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            name_item.setToolTip(file_path)
+            self.file_table.setItem(row_position, 0, name_item)
+            
+            # Get file size
+            total_size = os.path.getsize(file_path)
+            if total_size >= 1024 * 1024 * 1024:  # GB
+                size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+            elif total_size >= 1024 * 1024:  # MB
+                size_str = f"{total_size / (1024 * 1024):.2f} MB"
+            elif total_size >= 1024:  # KB
+                size_str = f"{total_size / 1024:.2f} KB"
+            else:  # Bytes
+                size_str = f"{total_size} B"
+
+        # Add size to table
+        size_item = QTableWidgetItem(size_str)
+        size_item.setFlags(size_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        self.file_table.setItem(row_position, 1, size_item)
+        
+        # Initialize progress
+        progress_item = QTableWidgetItem()
+        progress_item.setData(Qt.ItemDataRole.UserRole, 0)
+        self.file_table.setItem(row_position, 2, progress_item)
+        self.file_progress_bars[file_path] = progress_item
 
     def sendSelectedFiles(self):
         password = None
@@ -649,10 +802,11 @@ def selectFile(self):
 
         self.file_sender = FileSender(self.ip_address, self.file_paths, password, self.receiver_data)
         self.progress_bar.setVisible(True)
-        self.file_sender.progress_update.connect(self.updateProgressBar)
         self.file_sender.file_send_completed.connect(self.fileSent)
         self.file_sender.transfer_finished.connect(self.onTransferFinished)
         self.file_sender.file_count_update.connect(self.updateFileCounts)
+        self.file_sender.file_progress_update.connect(self.updateFileProgressBar)
+        self.file_sender.overall_progress_update.connect(self.updateOverallProgressBar)
         self.file_sender.start()
         #com.an.Datadash
 
@@ -664,6 +818,17 @@ def selectFile(self):
 
     def updateFileCounts(self, total_files, files_sent, files_pending):
         self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
+
+    def updateFileProgressBar(self, file_path, value):
+        if file_path not in self.file_progress_bars:
+            # Only create progress bar for folders or individual files
+            if os.path.isdir(file_path) or file_path in self.file_paths:
+                self.add_file_to_table(file_path)
+        if file_path in self.file_progress_bars:
+            self.file_progress_bars[file_path].setData(Qt.ItemDataRole.UserRole, value)
+
+    def updateOverallProgressBar(self, value):
+        self.progress_bar.setValue(value)
 
     def onTransferFinished(self):
         self.close_button.setVisible(True)
@@ -692,6 +857,13 @@ def selectFile(self):
                 logger.error(f"Error while closing socket: {e}")
 
 if __name__ == '__main__':
+    import sys
+    app = QApplication(sys.argv)
+    send_app = SendApp("127.0.0.1", "Test Device", None)
+    send_app.show()
+    sys.exit(app.exec())
+    #com.an.Datadash
+    #com.an.Datadash
     import sys
     app = QApplication(sys.argv)
     send_app = SendApp("127.0.0.1", "Test Device", None)

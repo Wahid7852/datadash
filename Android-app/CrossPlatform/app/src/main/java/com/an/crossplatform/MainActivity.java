@@ -15,6 +15,7 @@ import android.provider.Settings;
 import android.widget.Button;
 import android.widget.ImageButton;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -99,6 +100,24 @@ public class MainActivity extends AppCompatActivity {
 
         btnPreferences.setOnClickListener(v -> {
             startActivity(new Intent(MainActivity.this, PreferencesActivity.class));
+        });
+        // Handle back button press using OnBackPressedDispatcher
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Ask user to confirm exit
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("Exit")
+                        .setMessage("Are you sure you want to exit?")
+                        .setPositiveButton("Yes", (dialog, which) -> {
+                            dialog.dismiss();
+                            finishAffinity(); // Close all activities
+                            android.os.Process.killProcess(android.os.Process.myPid()); // Kill the app process
+                            System.exit(0); // Ensure complete shutdown
+                        })
+                        .setNegativeButton("No", (dialog, which) -> dialog.dismiss())
+                        .show();
+            }
         });
     }
 
@@ -524,6 +543,23 @@ public class MainActivity extends AppCompatActivity {
             isFirstLaunch = true;
         }
     }
+
+//    @Override
+//    public void onBackPressed() {
+//        super.onBackPressed();
+//        // Ask user to confirm exit
+//        new AlertDialog.Builder(this)
+//                .setTitle("Exit")
+//                .setMessage("Are you sure you want to exit?")
+//                .setPositiveButton("Yes", (dialog, which) -> {
+//                    dialog.dismiss();
+//                    finishAffinity(); // Close all activities
+//                    android.os.Process.killProcess(android.os.Process.myPid()); // Kill the app process
+//                    System.exit(0); // Ensure complete shutdown
+//                })
+//                .setNegativeButton("No", (dialog, which) -> dialog.dismiss())
+//                .show();
+//    }
 
 
 //    private void createsavefolder() {
