@@ -367,6 +367,7 @@ class ReceiveAppPJava(QWidget):
 
         QMetaObject.invokeMethod(self.file_receiver, "start", Qt.ConnectionType.QueuedConnection)
         self.config_manager = ConfigManager()
+        self.main_window = None
 
     def initUI(self):
         self.setWindowTitle('Receive File')
@@ -547,43 +548,43 @@ class ReceiveAppPJava(QWidget):
 
                 elif current_os == 'Linux':
                     file_managers = [
-                        ["xdg-open", receiving_dir],
-                        ["xdg-mime", "open", receiving_dir],
+                        # ["xdg-open", receiving_dir],
+                        # ["xdg-mime", "open", receiving_dir],
                         ["dbus-send", "--print-reply", "--dest=org.freedesktop.FileManager1",
                          "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowFolders",
-                         "array:string:" + receiving_dir, "string:"],
-                        ["gio", "open", receiving_dir],
-                        ["gvfs-open", receiving_dir],
-                        ["kde-open", receiving_dir],
-                        ["kfmclient", "exec", receiving_dir],
-                        ["nautilus", receiving_dir],
-                        ["dolphin", receiving_dir],
-                        ["thunar", receiving_dir],
-                        ["pcmanfm", receiving_dir],
-                        ["krusader", receiving_dir],
-                        ["mc", receiving_dir],
-                        ["nemo", receiving_dir],
-                        ["caja", receiving_dir],
-                        ["konqueror", receiving_dir],
-                        ["gwenview", receiving_dir],
-                        ["gimp", receiving_dir],
-                        ["eog", receiving_dir],
-                        ["feh", receiving_dir],
-                        ["gpicview", receiving_dir],
-                        ["mirage", receiving_dir],
-                        ["ristretto", receiving_dir],
-                        ["viewnior", receiving_dir],
-                        ["gthumb", receiving_dir],
-                        ["nomacs", receiving_dir],
-                        ["geeqie", receiving_dir],
-                        ["gwenview", receiving_dir],
-                        ["gpicview", receiving_dir],
-                        ["mirage", receiving_dir],
-                        ["ristretto", receiving_dir],
-                        ["viewnior", receiving_dir],
-                        ["gthumb", receiving_dir],
-                        ["nomacs", receiving_dir],
-                        ["geeqie", receiving_dir],
+                         "array:string:" + "file://" + receiving_dir, "string:"]
+                        # ["gio", "open", receiving_dir],
+                        # ["gvfs-open", receiving_dir],
+                        # ["kde-open", receiving_dir],
+                        # ["kfmclient", "exec", receiving_dir],
+                        # ["nautilus", receiving_dir],
+                        # ["dolphin", receiving_dir],
+                        # ["thunar", receiving_dir],
+                        # ["pcmanfm", receiving_dir],
+                        # ["krusader", receiving_dir],
+                        # ["mc", receiving_dir],
+                        # ["nemo", receiving_dir],
+                        # ["caja", receiving_dir],
+                        # ["konqueror", receiving_dir],
+                        # ["gwenview", receiving_dir],
+                        # ["gimp", receiving_dir],
+                        # ["eog", receiving_dir],
+                        # ["feh", receiving_dir],
+                        # ["gpicview", receiving_dir],
+                        # ["mirage", receiving_dir],
+                        # ["ristretto", receiving_dir],
+                        # ["viewnior", receiving_dir],
+                        # ["gthumb", receiving_dir],
+                        # ["nomacs", receiving_dir],
+                        # ["geeqie", receiving_dir],
+                        # ["gwenview", receiving_dir],
+                        # ["gpicview", receiving_dir],
+                        # ["mirage", receiving_dir],
+                        # ["ristretto", receiving_dir],
+                        # ["viewnior", receiving_dir],
+                        # ["gthumb", receiving_dir],
+                        # ["nomacs", receiving_dir],
+                        # ["geeqie", receiving_dir],
                     ]
 
                     success = False
@@ -627,32 +628,37 @@ class ReceiveAppPJava(QWidget):
         self.close_button.setVisible(True)
 
     def closeEvent(self, event):
-        """Handle application close event"""
-        try:
-            # Stop the typewriter effect
-            if hasattr(self, 'typewriter_timer'):
-                self.typewriter_timer.stop()
-                
-            # Stop file receiver and cleanup
-            if hasattr(self, 'file_receiver'):
-                self.file_receiver.stop()
-                self.file_receiver.close_connection()
-                
-                # Ensure thread is properly terminated
-                if not self.file_receiver.wait(3000):  # Wait up to 3 seconds
-                    self.file_receiver.terminate()
-                    self.file_receiver.wait()
-                    
-            # Stop any running movies
-            if hasattr(self, 'receiving_movie'):
-                self.receiving_movie.stop()
-            if hasattr(self, 'success_movie'):
-                self.success_movie.stop()
-                
-        except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
-        finally:
-            event.accept()
+        logger.info("Shutting down ReceiveAppPJava")
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
+
+    def cleanup(self):
+        logger.info("Cleaning up ReceiveAppPJava resources")
+        
+        # Stop typewriter effect
+        if hasattr(self, 'typewriter_timer'):
+            self.typewriter_timer.stop()
+            
+        # Stop file receiver and cleanup
+        if hasattr(self, 'file_receiver'):
+            self.file_receiver.stop()
+            self.file_receiver.close_connection()
+            
+            # Ensure thread is properly terminated
+            if not self.file_receiver.wait(3000):  # Wait up to 3 seconds
+                self.file_receiver.terminate()
+                self.file_receiver.wait()
+            
+        # Stop any running movies
+        if hasattr(self, 'receiving_movie'):
+            self.receiving_movie.stop()
+        if hasattr(self, 'success_movie'):
+            self.success_movie.stop()
+
+        # Close main window if it exists
+        if self.main_window:
+            self.main_window.close()
 
     def __del__(self):
         """Ensure cleanup on object destruction"""

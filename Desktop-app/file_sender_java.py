@@ -289,7 +289,7 @@ class Receiver(QListWidgetItem):
         self.setText(f"{self._name} ({self._ip_address})")
 
 class SendAppJava(QWidget):
-    def __init__(self,ip_address,device_name,receiver_data):
+    def __init__(self, ip_address, device_name, receiver_data):
         super().__init__()
         self.config_manager = ConfigManager()
         self.config_manager.config_updated.connect(self.on_config_updated)
@@ -301,6 +301,33 @@ class SendAppJava(QWidget):
         self.initUI()
         self.progress_bar.setVisible(False)
         self.setFixedSize(853, 480) 
+        self.main_window = None
+        self.file_sender_java = None
+
+    def cleanup(self):
+        logger.info("Cleaning up SendAppJava resources")
+        
+        # Stop file sender thread
+        if self.file_sender_java and self.file_sender_java.isRunning():
+            self.file_sender_java.stop()
+            self.file_sender_java.wait()
+
+        # Close main window if it exists
+        if self.main_window:
+            self.main_window.close()
+
+        # Close any open sockets
+        if hasattr(self, 'client_skt'):
+            try:
+                self.client_skt.close()
+            except:
+                pass
+
+    def closeEvent(self, event):
+        logger.info("Shutting down SendAppJava")
+        self.cleanup()
+        QApplication.quit()
+        event.accept()
 
     def on_config_updated(self, config):
         self.current_config = config
