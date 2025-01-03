@@ -1,5 +1,4 @@
 Pending priority work:
-1) Android Encryption.
 2) Send more files button and go to main menu button in python and Android.
 3) Redo windows built app to avoid Defender blocking the whole app.
 4) Bug fix in python app for self discovery(kill sender if receiver is activated and vice versa).
