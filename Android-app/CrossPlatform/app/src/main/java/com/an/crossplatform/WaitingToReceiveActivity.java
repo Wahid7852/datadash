@@ -75,6 +75,12 @@ public class WaitingToReceiveActivity extends AppCompatActivity {
             DEVICE_NAME = "Android Device";  // Fallback if config.json doesn't exist
             FileLogger.log("WaitingToReceive", "Using default device name: " + DEVICE_NAME);
         }
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                closeAllSockets();
+            }
+        });
 
         // Start listening for discover messages
         startListeningForDiscover();

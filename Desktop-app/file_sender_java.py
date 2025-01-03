@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QPushButton, QListWidget, 
-    QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem, QTextEdit, QLineEdit, QHBoxLayout, QFrame
+    QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem, QTextEdit, QLineEdit, QHBoxLayout, QFrame, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtGui import QScreen, QFont, QKeyEvent, QKeySequence
 import os
@@ -21,6 +21,9 @@ class FileSenderJava(QThread):
     progress_update = pyqtSignal(int)
     file_send_completed = pyqtSignal(str)
     transfer_finished = pyqtSignal()
+    file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
+    file_progress_update = pyqtSignal(str, int)  # file_path, progress
+    overall_progress_update = pyqtSignal(int)  # overall progress
     password = None
 
     def __init__(self, ip_address, file_paths, password=None, receiver_data=None):
@@ -31,7 +34,32 @@ class FileSenderJava(QThread):
         self.file_paths = file_paths
         self.password = password
         self.receiver_data = receiver_data
+        self.total_files = self.count_total_files()
+        self.files_sent = 0
+        self.total_size = self.calculate_total_size()
+        self.sent_size = 0
         #com.an.Datadash
+
+    def count_total_files(self):
+        total = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    total += len(files)
+            else:
+                total += 1
+        return total
+
+    def calculate_total_size(self):
+        total_size = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    for file in files:
+                        total_size += os.path.getsize(os.path.join(root, file))
+            else:
+                total_size += os.path.getsize(path)
+        return total_size
 
     def initialize_connection(self):
         try:
@@ -155,6 +183,14 @@ class FileSenderJava(QThread):
     def send_folder(self, folder_path):
         logger.debug("Sending folder: %s", folder_path)
 
+        # Calculate total folder size and prepare files
+        folder_total_size = 0
+        folder_sent_size = 0
+        
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                folder_total_size += os.path.getsize(os.path.join(root, file))
+
         for root, dirs, files in os.walk(folder_path):
             for file in files:
                 file_path = os.path.join(root, file)
@@ -162,8 +198,18 @@ class FileSenderJava(QThread):
                 
                 if self.encryption_flag:
                     relative_path += ".crypt"
+
+                file_size = os.path.getsize(file_path)
+                self.send_file(file_path, relative_file_path=relative_path, 
+                             encrypted_transfer=self.encryption_flag)
                 
-                self.send_file(file_path, relative_file_path=relative_path, encrypted_transfer=self.encryption_flag)
+                folder_sent_size += file_size
+                folder_progress = folder_sent_size * 100 // folder_total_size
+                self.file_progress_update.emit(folder_path, folder_progress)
+
+                self.files_sent += 1
+                files_pending = self.total_files - self.files_sent
+                self.file_count_update.emit(self.total_files, self.files_sent, files_pending)
 
     def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False):
         logger.debug("Sending file: %s", file_path)
@@ -200,8 +246,10 @@ class FileSenderJava(QThread):
                         break
                     self.client_skt.sendall(chunk)
                     sent_size += len(chunk)
-                    progress = int(sent_size * 100 / file_size)
-                    self.progress_update.emit(progress)
+                    self.file_progress_update.emit(file_path, sent_size * 100 // file_size)
+                    self.sent_size += len(chunk)
+                    overall_progress = self.sent_size * 100 // self.total_size
+                    self.overall_progress_update.emit(overall_progress)
 
             # Clean up encrypted file if it was created
             if encrypted_transfer:
@@ -299,18 +347,29 @@ class SendAppJava(QWidget):
         content_layout.addLayout(button_layout)
 
         # File path display
-        self.file_path_display = QTextEdit()
-        self.file_path_display.setReadOnly(True)
-        self.file_path_display.setStyleSheet("""
-            QTextEdit {
+        self.file_table = QTableWidget()
+        self.file_table.setColumnCount(2)
+        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_table.setHorizontalHeaderLabels(["File Path", "Progress"])
+        self.file_table.verticalHeader().setVisible(False)
+        self.file_table.horizontalHeader().setVisible(False)
+        self.file_table.setShowGrid(False)
+        self.file_table.setStyleSheet("""
+            QTableWidget {
                 background-color: #2f3642;
                 color: white;
                 border: 1px solid #4b5562;
                 border-radius: 5px;
+            }
+            QTableWidget::item {
                 padding: 5px;
             }
         """)
-        content_layout.addWidget(self.file_path_display)
+        content_layout.addWidget(self.file_table)
+        
+        # Add progress tracking
+        self.file_progress_bars = {}
 
         # Password input (if encryption is enabled)
         if self.config_manager.get_config()['encryption']:
@@ -449,23 +508,22 @@ class SendAppJava(QWidget):
         #com.an.Datadash
 
     def selectFile(self):
-        documents= self.get_default_path()
+        documents = self.get_default_path()
         file_paths, _ = QFileDialog.getOpenFileNames(self, 'Open Files', documents)
         if file_paths:
-            self.file_path_display.clear()
+            self.file_table.setRowCount(0)  # Clear existing rows
             for file_path in file_paths:
-                self.file_path_display.append(file_path)
+                self.add_file_to_table(file_path)
             self.file_paths = file_paths
             self.checkReadyToSend()
 
     def selectFolder(self):
-        documents= self.get_default_path()
+        documents = self.get_default_path()
         folder_path = QFileDialog.getExistingDirectory(self, 'Select Folder', documents)
         if folder_path:
-            self.file_path_display.clear()
-            self.file_path_display.append(folder_path)
+            self.file_table.setRowCount(0)  # Clear existing rows
+            self.add_file_to_table(folder_path)
             self.file_paths = [folder_path]
-            print(self.file_paths)
             self.checkReadyToSend()
 
     def get_default_path(self):
@@ -482,6 +540,36 @@ class SendAppJava(QWidget):
     def checkReadyToSend(self):
         if self.file_paths:
             self.send_button.setVisible(True)
+
+    def add_file_to_table(self, file_path):
+        row_position = self.file_table.rowCount()
+        self.file_table.insertRow(row_position)
+        file_item = QTableWidgetItem(file_path)
+        file_item.setFlags(file_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        self.file_table.setItem(row_position, 0, file_item)
+        progress_bar = QProgressBar()
+        progress_bar.setFixedWidth(150)
+        progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #2f3642;
+                color: white;
+                border: 1px solid #4b5562;
+                border-radius: 5px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+            }
+        """)
+        self.file_table.setCellWidget(row_position, 1, progress_bar)
+        self.file_progress_bars[file_path] = progress_bar
+
+    def updateFileProgressBar(self, file_path, value):
+        if file_path not in self.file_progress_bars:
+            if os.path.isdir(file_path) or file_path in self.file_paths:
+                self.add_file_to_table(file_path)
+        if file_path in self.file_progress_bars:
+            self.file_progress_bars[file_path].setValue(value)
 
     def sendSelectedFiles(self):
         selected_item = self.device_name
@@ -505,6 +593,9 @@ class SendAppJava(QWidget):
         self.file_sender_java.progress_update.connect(self.updateProgressBar)
         self.file_sender_java.file_send_completed.connect(self.fileSent)
         self.file_sender_java.transfer_finished.connect(self.onTransferFinished)
+        self.file_sender_java.file_progress_update.connect(self.updateFileProgressBar)
+        self.file_sender_java.overall_progress_update.connect(self.updateProgressBar)
+        self.file_sender_java.file_count_update.connect(self.updateFileCounts)
         self.file_sender_java.start()
         #com.an.Datadash
 
@@ -525,6 +616,8 @@ class SendAppJava(QWidget):
         self.status_label.setText("File transfer completed!")
         self.status_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
 
+    def updateFileCounts(self, total_files, files_sent, files_pending):
+        self.status_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
 
     def closeEvent(self, event):
         try:

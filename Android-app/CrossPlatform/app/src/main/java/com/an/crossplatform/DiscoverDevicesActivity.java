@@ -1,5 +1,6 @@
 package com.an.crossplatform;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -102,6 +103,12 @@ public class DiscoverDevicesActivity extends AppCompatActivity {
 //                while (System.currentTimeMillis() - startTime < 15000) {
                     exchangeJsonAndStartSendFileActivity();
 //                }
+            }
+        });
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                closeAllSockets();
             }
         });
     }

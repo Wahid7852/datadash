@@ -9,9 +9,11 @@ import android.os.Environment;
 import android.provider.OpenableColumns;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -561,10 +563,13 @@ public class SendFileActivityPython extends AppCompatActivity {
                         sendButton.setEnabled(false);
                         //Toast.makeText(SendFileActivityPython.this, "Sending Completed", Toast.LENGTH_SHORT).show();
 
-                        // Launch TransferCompleteActivity
-                        Intent intent = new Intent(SendFileActivityPython.this, TransferCompleteActivity.class);
-                        startActivity(intent);
-                        finish(); // Close current activity
+//                        // Launch TransferCompleteActivity
+//                        Intent intent = new Intent(SendFileActivityPython.this, TransferCompleteActivity.class);
+//                        startActivity(intent);
+//                        finish(); // Close current activity
+                        TransferCompleteActivity transferCompleteActivity = new TransferCompleteActivity(SendFileActivityPython.this);
+                        transferCompleteActivity.requestWindowFeature(Window.FEATURE_NO_TITLE);
+                        transferCompleteActivity.show();
                     }
                 });
             } catch (IOException e) {

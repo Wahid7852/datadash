@@ -25,7 +25,6 @@ class FileSender(QThread):
     file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
     file_progress_update = pyqtSignal(str, int)  # file_path, progress
     overall_progress_update = pyqtSignal(int)  # overall progress
-    estimated_time_update = pyqtSignal(str)  # estimated time
 
     password = None
 
@@ -41,9 +40,6 @@ class FileSender(QThread):
         self.files_sent = 0
         self.total_size = self.calculate_total_size()
         self.sent_size = 0
-        self.start_timer = QElapsedTimer()
-        self.update_timer = QTimer()
-        self.update_timer.timeout.connect(self.update_estimated_time)
 
     def count_total_files(self):
         total = 0
@@ -119,8 +115,6 @@ class FileSender(QThread):
             return
         
         self.encryption_flag = self.config_manager.get_config()["encryption"]
-        self.start_timer.start()
-        self.update_timer.start(5000)  # Update every 5 seconds
 
         for file_path in self.file_paths:
             if os.path.isdir(file_path):
@@ -207,23 +201,61 @@ class FileSender(QThread):
             
     def send_folder(self, folder_path):
         print("Sending folder")
-        #com.an.Datadash
-        
-        if not self.metadata_created:
-            metadata_file_path = self.create_metadata(folder_path=folder_path)
-            metadata = json.loads(open(metadata_file_path).read())
-            self.send_file(metadata_file_path, count=False)
+        try:
+            if not self.metadata_created:
+                # Create and send metadata first
+                metadata_file_path = self.create_metadata(folder_path=folder_path)
+                with open(metadata_file_path, 'rb') as f:
+                    metadata_content = f.read()
+                
+                # Send metadata file with proper headers
+                encryption_flag = 'encyp: f'
+                file_name = 'metadata.json'
+                file_name_size = len(file_name.encode())
+                file_size = len(metadata_content)
 
-        for file_info in metadata:
-            relative_file_path = file_info['path']
-            file_path = os.path.join(folder_path, relative_file_path)
-            if not relative_file_path.endswith('.delete'):
-                if file_info['size'] > 0:
-                    if self.encryption_flag:
-                        relative_file_path += ".crypt"
-                    self.send_file(file_path, relative_file_path=relative_file_path, encrypted_transfer=self.encryption_flag)
+                # Send headers
+                self.client_skt.send(encryption_flag.encode())
+                self.client_skt.send(struct.pack('<Q', file_name_size))
+                self.client_skt.send(file_name.encode('utf-8'))
+                self.client_skt.send(struct.pack('<Q', file_size))
 
-        os.remove(metadata_file_path)
+                # Send metadata content in chunks
+                sent = 0
+                while sent < file_size:
+                    chunk = metadata_content[sent:sent + CHUNK_SIZE_DESKTOP]
+                    self.client_skt.send(chunk)
+                    sent += len(chunk)
+
+                # Read metadata for processing
+                metadata = json.loads(open(metadata_file_path).read())
+
+                # Calculate total folder size and prepare files
+                folder_total_size = sum(file_info['size'] for file_info in metadata 
+                                     if not file_info['path'].endswith('.delete') and file_info['size'] > 0)
+                folder_sent_size = 0
+
+                # Send each file
+                for file_info in metadata:
+                    if not file_info['path'].endswith('.delete') and file_info['size'] > 0:
+                        relative_file_path = file_info['path']
+                        file_path = os.path.join(folder_path, relative_file_path)
+                        if self.encryption_flag:
+                            relative_file_path += ".crypt"
+                        
+                        # Send the actual file
+                        if os.path.exists(file_path):
+                            self.send_file(file_path, relative_file_path=relative_file_path, 
+                                         encrypted_transfer=self.encryption_flag)
+                            folder_sent_size += file_info['size']
+                            folder_progress = folder_sent_size * 100 // folder_total_size
+                            self.file_progress_update.emit(folder_path, folder_progress)
+
+                os.remove(metadata_file_path)
+
+        except Exception as e:
+            logger.error(f"Error in send_folder: {str(e)}")
+            raise
 
     def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False, count=True):
         logger.debug("Sending file: %s", file_path)
@@ -268,13 +300,6 @@ class FileSender(QThread):
             os.remove(file_path)
 
         return True
-    
-    def update_estimated_time(self):
-        elapsed_time = self.start_timer.elapsed() / 1000  # in seconds
-        if self.sent_size > 0:
-            estimated_total_time = (elapsed_time / self.sent_size) * self.total_size
-            remaining_time = estimated_total_time - elapsed_time
-            self.estimated_time_update.emit(f"Estimated time remaining: {int(remaining_time)} seconds")
 
     def closeEvent(self, event):
         #close all sockets and unbind the sockets
@@ -284,7 +309,6 @@ class FileSender(QThread):
     def stop(self):
         """Sets the stop signal to True and closes the socket if it's open."""
         self.stop_signal = True
-        self.update_timer.stop()
         if self.client_skt:
             try:
                 self.client_skt.close()
@@ -682,7 +706,6 @@ class SendApp(QWidget):
         self.file_sender.file_count_update.connect(self.updateFileCounts)
         self.file_sender.file_progress_update.connect(self.updateFileProgressBar)
         self.file_sender.overall_progress_update.connect(self.updateOverallProgressBar)
-        self.file_sender.estimated_time_update.connect(self.updateEstimatedTime)
         self.file_sender.start()
         #com.an.Datadash
 
@@ -696,15 +719,15 @@ class SendApp(QWidget):
         self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
 
     def updateFileProgressBar(self, file_path, value):
+        if file_path not in self.file_progress_bars:
+            # Only create progress bar for folders or individual files
+            if os.path.isdir(file_path) or file_path in self.file_paths:
+                self.add_file_to_table(file_path)
         if file_path in self.file_progress_bars:
             self.file_progress_bars[file_path].setValue(value)
 
     def updateOverallProgressBar(self, value):
         self.progress_bar.setValue(value)
-
-    def updateEstimatedTime(self, time_text):
-        self.status_label.setText(time_text)
-        self.status_label.setStyleSheet("color: white; font-size: 18px; background-color: transparent;")
 
     def onTransferFinished(self):
         self.close_button.setVisible(True)
