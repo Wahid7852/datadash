@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QPushButton, QListWidget, 
     QProgressBar, QLabel, QFileDialog, QApplication, QListWidgetItem, QTextEdit, QLineEdit,
-    QHBoxLayout, QFrame, QTableWidget, QTableWidgetItem, QHeaderView
+    QHBoxLayout, QFrame, QTableWidget, QTableWidgetItem, QHeaderView, QStyledItemDelegate
 )
 from PyQt6.QtGui import QScreen, QFont, QColor, QKeyEvent, QKeySequence
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QElapsedTimer, QTimer
@@ -17,6 +17,37 @@ from loges import logger
 from crypt_handler import encrypt_file
 from time import sleep
 from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
+
+class ProgressBarDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        if index.column() == 2:  # Progress column
+            progress = index.data(Qt.ItemDataRole.UserRole)
+            if progress is not None:
+                progressBar = QProgressBar()
+                progressBar.setStyleSheet("""
+                    QProgressBar {
+                        background-color: #2f3642;
+                        color: white;
+                        border: 1px solid #4b5562;
+                        border-radius: 5px;
+                        text-align: center;
+                    }
+                    QProgressBar::chunk {
+                        background-color: #4CAF50;
+                    }
+                """)
+                progressBar.setGeometry(option.rect)
+                progressBar.setValue(progress)
+                progressBar.setTextVisible(True)
+                painter.save()
+                painter.translate(option.rect.topLeft())
+                progressBar.render(painter)
+                painter.restore()
+            return
+        super().paint(painter, option, index)
+
+    def createEditor(self, parent, option, index):
+        return None  # Disable editing
 
 class FileSender(QThread):
     progress_update = pyqtSignal(int)
@@ -327,6 +358,8 @@ class SendApp(QWidget):
         self.device_name = device_name
         self.receiver_data = receiver_data
         self.file_paths = []
+        self.file_progress_bars = {}  # Initialize the dictionary for progress bars
+        self.send_button = None  # Initialize the send button reference
         self.initUI()
         self.progress_bar.setVisible(False)
         self.main_window = None
@@ -399,31 +432,38 @@ class SendApp(QWidget):
         self.folder_button = self.create_styled_button('Select Folder')
         self.folder_button.clicked.connect(self.selectFolder)
         button_layout.addWidget(self.folder_button)
-        #com.an.Datadash
 
         content_layout.addLayout(button_layout)
 
-        # File path display in table format
+        # Files table
         self.file_table = QTableWidget()
-        self.file_table.setColumnCount(2)
-        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.file_table.setHorizontalHeaderLabels(["File Path", "Progress"])
-        self.file_table.verticalHeader().setVisible(False)
-        self.file_table.horizontalHeader().setVisible(False)
-        self.file_table.setShowGrid(False)
+        self.file_table.setColumnCount(3)
+        self.file_table.setHorizontalHeaderLabels(['File Name', 'Size', 'Progress'])
         self.file_table.setStyleSheet("""
             QTableWidget {
                 background-color: #2f3642;
                 color: white;
                 border: 1px solid #4b5562;
-                border-radius: 5px;
+                gridline-color: #4b5562;
             }
-            QTableWidget::item {
+            QHeaderView::section {
+                background-color: #1f242d;
+                color: white;
                 padding: 5px;
+                border: 1px solid #4b5562;
             }
         """)
+        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.file_table.setColumnWidth(2, 200)
+        self.file_table.setItemDelegate(ProgressBarDelegate())
         content_layout.addWidget(self.file_table)
+
+        # Add file counts label before the progress bar
+        self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
+        self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
+        content_layout.addWidget(self.file_counts_label)
 
         # Password input (if encryption is enabled)
         if self.config_manager.get_config()["encryption"]:
@@ -446,13 +486,7 @@ class SendApp(QWidget):
             password_layout.addWidget(self.password_input)
             content_layout.addLayout(password_layout)
 
-        # Send button
-        self.send_button = self.create_styled_button('Send Files')
-        self.send_button.setVisible(False)
-        self.send_button.clicked.connect(self.sendSelectedFiles)
-        content_layout.addWidget(self.send_button, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        # Progress bar
+        # Overall progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet("""
             QProgressBar {
@@ -468,34 +502,31 @@ class SendApp(QWidget):
         """)
         content_layout.addWidget(self.progress_bar)
 
-        # Status label
+        # Add status label before the buttons
         self.status_label = QLabel("")
-        self.style_label(self.status_label)
+        self.status_label.setStyleSheet("color: white; font-size: 18px; background-color: transparent;")
         content_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Add label for file counts
-        self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
-        self.file_counts_label.setStyleSheet("color: white; font-size: 14px; background-color: transparent;")
-        content_layout.addWidget(self.file_counts_label)
+        # Send button
+        self.send_button = self.create_styled_button('Send Files')
+        self.send_button.setVisible(False)
+        self.send_button.clicked.connect(self.sendSelectedFiles)
+        content_layout.addWidget(self.send_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Individual file progress bars
-        self.file_progress_bars = {}
-        self.file_progress_labels = {}
-        self.file_progress_layout = QVBoxLayout()
-        content_layout.addLayout(self.file_progress_layout)
-
-        # Keep them disabled until the file transfer is completed
-        self.close_button = self.create_styled_button_close('Close')  # Apply styling here
+        # Close and Main Menu buttons
+        buttons_layout = QHBoxLayout()
+        
+        self.close_button = self.create_styled_button_close('Close')
         self.close_button.setVisible(False)
         self.close_button.clicked.connect(self.close)
-        content_layout.addWidget(self.close_button)
-        #com.an.Datadash
+        buttons_layout.addWidget(self.close_button)
 
-        self.mainmenu_button = self.create_styled_button_close('Main Menu')  # Apply styling here
+        self.mainmenu_button = self.create_styled_button_close('Main Menu')
         self.mainmenu_button.setVisible(False)
         self.mainmenu_button.clicked.connect(self.openMainWindow)
-        content_layout.addWidget(self.mainmenu_button)
+        buttons_layout.addWidget(self.mainmenu_button)
 
+        content_layout.addLayout(buttons_layout)
         main_layout.addLayout(content_layout)
         self.setLayout(main_layout)
 
@@ -644,28 +675,71 @@ class SendApp(QWidget):
             self.send_button.setVisible(True)
             #com.an.Datadash
 
+    def get_folder_size(self, folder_path):
+        """Calculate total size of a folder"""
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(folder_path):
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+                if os.path.exists(file_path):
+                    total_size += os.path.getsize(file_path)
+        return total_size
+
     def add_file_to_table(self, file_path):
         row_position = self.file_table.rowCount()
         self.file_table.insertRow(row_position)
-        file_item = QTableWidgetItem(file_path)
-        file_item.setFlags(file_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
-        self.file_table.setItem(row_position, 0, file_item)
-        progress_bar = QProgressBar()
-        progress_bar.setFixedWidth(150)  # Adjust the width of the progress bar
-        progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: #2f3642;
-                color: white;
-                border: 1px solid #4b5562;
-                border-radius: 5px;
-                text-align: center;
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-            }
-        """)
-        self.file_table.setCellWidget(row_position, 1, progress_bar)
-        self.file_progress_bars[file_path] = progress_bar
+        
+        if os.path.isdir(file_path):
+            # For folders, just show the folder name and total size
+            folder_name = os.path.basename(file_path)
+            name_item = QTableWidgetItem(folder_name)
+            name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            name_item.setToolTip(file_path)  # Show full path on hover
+            self.file_table.setItem(row_position, 0, name_item)
+            
+            # Calculate folder size and count files
+            total_size = self.get_folder_size(file_path)
+            file_count = sum([len(files) for _, _, files in os.walk(file_path)])
+            
+            # Format size string with file count
+            if total_size >= 1024 * 1024 * 1024:  # GB
+                size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+            elif total_size >= 1024 * 1024:  # MB
+                size_str = f"{total_size / (1024 * 1024):.2f} MB"
+            elif total_size >= 1024:  # KB
+                size_str = f"{total_size / 1024:.2f} KB"
+            else:  # Bytes
+                size_str = f"{total_size} B"
+            
+            size_str += f" ({file_count} items)"
+        else:
+            # For single files, show filename and size
+            name_item = QTableWidgetItem(os.path.basename(file_path))
+            name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+            name_item.setToolTip(file_path)
+            self.file_table.setItem(row_position, 0, name_item)
+            
+            # Get file size
+            total_size = os.path.getsize(file_path)
+            if total_size >= 1024 * 1024 * 1024:  # GB
+                size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+            elif total_size >= 1024 * 1024:  # MB
+                size_str = f"{total_size / (1024 * 1024):.2f} MB"
+            elif total_size >= 1024:  # KB
+                size_str = f"{total_size / 1024:.2f} KB"
+            else:  # Bytes
+                size_str = f"{total_size} B"
+
+        # Add size to table
+        size_item = QTableWidgetItem(size_str)
+        size_item.setFlags(size_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        self.file_table.setItem(row_position, 1, size_item)
+        
+        # Initialize progress
+        progress_item = QTableWidgetItem()
+        progress_item.setData(Qt.ItemDataRole.UserRole, 0)
+        self.file_table.setItem(row_position, 2, progress_item)
+        self.file_progress_bars[file_path] = progress_item
 
     def sendSelectedFiles(self):
         password = None
@@ -751,7 +825,7 @@ class SendApp(QWidget):
             if os.path.isdir(file_path) or file_path in self.file_paths:
                 self.add_file_to_table(file_path)
         if file_path in self.file_progress_bars:
-            self.file_progress_bars[file_path].setValue(value)
+            self.file_progress_bars[file_path].setData(Qt.ItemDataRole.UserRole, value)
 
     def updateOverallProgressBar(self, value):
         self.progress_bar.setValue(value)
@@ -783,6 +857,13 @@ class SendApp(QWidget):
                 logger.error(f"Error while closing socket: {e}")
 
 if __name__ == '__main__':
+    import sys
+    app = QApplication(sys.argv)
+    send_app = SendApp("127.0.0.1", "Test Device", None)
+    send_app.show()
+    sys.exit(app.exec())
+    #com.an.Datadash
+    #com.an.Datadash
     import sys
     app = QApplication(sys.argv)
     send_app = SendApp("127.0.0.1", "Test Device", None)
