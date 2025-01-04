@@ -392,6 +392,84 @@ class SendApp(QWidget):
 
     def on_config_updated(self, config):
         self.current_config = config
+    
+    def add_file_to_table(self, file_path):
+     row_position = self.file_table.rowCount()
+     self.file_table.insertRow(row_position)
+
+    # Create X button
+     remove_button = QPushButton("X")
+     remove_button.setStyleSheet("""
+         QPushButton {
+             background-color: #ff4d4d;
+             color: white;
+             border: none;
+             padding: 2px 5px;
+             border-radius: 2px;
+             margin: 2px;
+             max-width: 50px;
+         }
+         QPushButton:hover {
+             background-color: #ff1a1a;
+         }
+     """)
+     remove_button.clicked.connect(lambda checked, fp=file_path: self.remove_file(fp))
+    
+     button_widget = QWidget()
+     button_layout = QHBoxLayout(button_widget)
+     button_layout.addWidget(remove_button)
+     button_layout.setContentsMargins(2, 2, 2, 2)
+     button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+     self.file_table.setCellWidget(row_position, 0, button_widget)
+
+     if os.path.isdir(file_path):
+        folder_name = os.path.basename(file_path)
+        name_item = QTableWidgetItem(folder_name)
+        name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        name_item.setToolTip(file_path)
+        self.file_table.setItem(row_position, 1, name_item)
+
+        total_size = self.get_folder_size(file_path)
+        file_count = sum([len(files) for _, _, files in os.walk(file_path)])
+        size_str = self.format_size(total_size, file_count)
+     else:
+        name_item = QTableWidgetItem(os.path.basename(file_path))
+        name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+        name_item.setToolTip(file_path)
+        self.file_table.setItem(row_position, 1, name_item)
+
+        total_size = os.path.getsize(file_path)
+        size_str = self.format_size(total_size)
+
+     size_item = QTableWidgetItem(size_str)
+     size_item.setFlags(size_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
+     self.file_table.setItem(row_position, 2, size_item)
+
+     progress_item = QTableWidgetItem()
+     progress_item.setData(Qt.ItemDataRole.UserRole, 0)
+     self.file_table.setItem(row_position, 3, progress_item)
+     self.file_progress_bars[file_path] = progress_item
+
+
+
+
+    def remove_file(self, file_path):
+     for row in range(self.file_table.rowCount()):
+        name_item = self.file_table.item(row, 1)
+        if name_item and name_item.toolTip() == file_path:
+            self.file_table.removeRow(row)
+            if file_path in self.file_paths:
+                self.file_paths.remove(file_path)
+            if file_path in self.file_progress_bars:
+                del self.file_progress_bars[file_path]
+            break
+    
+     if self.file_table.rowCount() == 0:
+        self.send_button.setVisible(False)
+     self.checkReadyToSend()
+
+
+
 
     def initUI(self):
  
@@ -435,30 +513,40 @@ class SendApp(QWidget):
 
         content_layout.addLayout(button_layout)
 
-        # Files table
+     # Files table
         self.file_table = QTableWidget()
-        self.file_table.setColumnCount(3)
-        self.file_table.setHorizontalHeaderLabels(['File Name', 'Size', 'Progress'])
+        self.file_table.setColumnCount(4)
+        self.file_table.setHorizontalHeaderLabels(['Remove', 'File Name', 'Size', 'Progress'])
         self.file_table.setStyleSheet("""
             QTableWidget {
-                background-color: #2f3642;
+                background-color: #1f242d;
                 color: white;
-                border: 1px solid #4b5562;
-                gridline-color: #4b5562;
+                border: none;
+                gridline-color: #2f3642;
             }
             QHeaderView::section {
                 background-color: #1f242d;
                 color: white;
                 padding: 5px;
-                border: 1px solid #4b5562;
+                border: none;
             }
-        """)
-        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            QTableWidget::item {
+                padding: 5px;
+            }
+       """)
+
+      # Configure columns
+        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.file_table.setColumnWidth(0, 60)
+        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.file_table.setColumnWidth(2, 200)
+        self.file_table.setColumnWidth(2, 100)
+        self.file_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.file_table.setColumnWidth(3, 100)
         self.file_table.setItemDelegate(ProgressBarDelegate())
         content_layout.addWidget(self.file_table)
+
+
 
         # Add file counts label before the progress bar
         self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
@@ -684,7 +772,22 @@ class SendApp(QWidget):
                 if os.path.exists(file_path):
                     total_size += os.path.getsize(file_path)
         return total_size
-
+    
+    def format_size(self, total_size, file_count=None):
+        """Format size string with file count"""
+        if total_size >= 1024 * 1024 * 1024:  # GB
+            size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+        elif total_size >= 1024 * 1024:  # MB
+            size_str = f"{total_size / (1024 * 1024):.2f} MB"
+        elif total_size >= 1024:  # KB
+            size_str = f"{total_size / 1024:.2f} KB"
+        else:  # Bytes
+            size_str = f"{total_size} B"
+            
+        if file_count is not None:
+            size_str += f" ({file_count} items)"
+        return size_str
+    
     def add_file_to_table(self, file_path):
         row_position = self.file_table.rowCount()
         self.file_table.insertRow(row_position)
