@@ -412,10 +412,14 @@ class SendApp(QWidget):
          QPushButton:hover {
              background-color: #ff1a1a;
          }
+         QPushButton:pressed {
+            background-color: #cc0000;
+        }
      """)
      remove_button.clicked.connect(lambda checked, fp=file_path: self.remove_file(fp))
     
      button_widget = QWidget()
+     button_widget.setStyleSheet("background: transparent;")
      button_layout = QHBoxLayout(button_widget)
      button_layout.addWidget(remove_button)
      button_layout.setContentsMargins(2, 2, 2, 2)
@@ -525,12 +529,13 @@ class SendApp(QWidget):
                 gridline-color: #2f3642;
             }
             QHeaderView::section {
-                background-color: #1f242d;
+                background-color: #2f3642;
                 color: white;
                 padding: 5px;
                 border: none;
             }
             QTableWidget::item {
+                background-color: transparent;
                 padding: 5px;
             }
        """)
