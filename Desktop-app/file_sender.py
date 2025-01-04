@@ -538,6 +538,10 @@ class SendApp(QWidget):
                 background-color: transparent;
                 padding: 5px;
             }
+             QTableWidget::item:column(0) {
+                background-color: #2b5797;
+                padding: 5px;
+    }
        """)
 
       # Configure columns
