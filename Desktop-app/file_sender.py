@@ -788,61 +788,7 @@ class SendApp(QWidget):
             size_str += f" ({file_count} items)"
         return size_str
     
-    def add_file_to_table(self, file_path):
-        row_position = self.file_table.rowCount()
-        self.file_table.insertRow(row_position)
-        
-        if os.path.isdir(file_path):
-            # For folders, just show the folder name and total size
-            folder_name = os.path.basename(file_path)
-            name_item = QTableWidgetItem(folder_name)
-            name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
-            name_item.setToolTip(file_path)  # Show full path on hover
-            self.file_table.setItem(row_position, 0, name_item)
-            
-            # Calculate folder size and count files
-            total_size = self.get_folder_size(file_path)
-            file_count = sum([len(files) for _, _, files in os.walk(file_path)])
-            
-            # Format size string with file count
-            if total_size >= 1024 * 1024 * 1024:  # GB
-                size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
-            elif total_size >= 1024 * 1024:  # MB
-                size_str = f"{total_size / (1024 * 1024):.2f} MB"
-            elif total_size >= 1024:  # KB
-                size_str = f"{total_size / 1024:.2f} KB"
-            else:  # Bytes
-                size_str = f"{total_size} B"
-            
-            size_str += f" ({file_count} items)"
-        else:
-            # For single files, show filename and size
-            name_item = QTableWidgetItem(os.path.basename(file_path))
-            name_item.setFlags(name_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
-            name_item.setToolTip(file_path)
-            self.file_table.setItem(row_position, 0, name_item)
-            
-            # Get file size
-            total_size = os.path.getsize(file_path)
-            if total_size >= 1024 * 1024 * 1024:  # GB
-                size_str = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
-            elif total_size >= 1024 * 1024:  # MB
-                size_str = f"{total_size / (1024 * 1024):.2f} MB"
-            elif total_size >= 1024:  # KB
-                size_str = f"{total_size / 1024:.2f} KB"
-            else:  # Bytes
-                size_str = f"{total_size} B"
-
-        # Add size to table
-        size_item = QTableWidgetItem(size_str)
-        size_item.setFlags(size_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
-        self.file_table.setItem(row_position, 1, size_item)
-        
-        # Initialize progress
-        progress_item = QTableWidgetItem()
-        progress_item.setData(Qt.ItemDataRole.UserRole, 0)
-        self.file_table.setItem(row_position, 2, progress_item)
-        self.file_progress_bars[file_path] = progress_item
+    
 
     def sendSelectedFiles(self):
         password = None
