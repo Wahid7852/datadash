@@ -25,6 +25,7 @@ class ReceiveWorkerPython(QThread):
     password = None
     telemetry_update = pyqtSignal(float, float, float)  # speed, time_remaining, total_time
     connection_failed = pyqtSignal(str)  # Signal to emit connection failure
+    file_count_update = pyqtSignal(int, int, int)  # total_files, files_received, files_pending
 
     def __init__(self, client_ip):
         super().__init__()
@@ -39,6 +40,8 @@ class ReceiveWorkerPython(QThread):
         self.close_connection_signal.connect(self.close_connection)
         self.config_manager = ConfigManager()
         self.config_manager.start()
+        self.total_files = 0
+        self.files_received = 0
         #com.an.Datadash
 
     def initialize_connection(self):
@@ -164,11 +167,14 @@ class ReceiveWorkerPython(QThread):
 
                 start_time = time()  # Start time for telemetry
                 received_size = 0
+                last_update_time = time()  # Track the last update time
 
                 # Check if it's metadata
                 if file_name == 'metadata.json':
                     logger.debug("Receiving metadata file.")
                     self.metadata = self.receive_metadata(file_size)
+                    self.total_files = len(self.metadata)  # Include the last entry (base folder info)
+                    self.file_count_update.emit(self.total_files, self.files_received, self.total_files - self.files_received)
                     ## Check if the 2nd last position of metadata is "base_folder_name" and it exists
                     if self.metadata[-1].get('base_folder_name', '') and self.metadata[-1]['base_folder_name'] != '':
                         self.destination_folder = self.create_folder_structure(self.metadata)
@@ -220,11 +226,20 @@ class ReceiveWorkerPython(QThread):
 
                             # Calculate telemetry
                             elapsed_time = time() - start_time
-                            speed = received_size / elapsed_time if elapsed_time > 0 else 0
-                            time_remaining = (file_size - received_size) / speed if speed > 0 else 0
+                            speed = (received_size / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0  # Convert to MBps
+                            time_remaining = (file_size - received_size) / (speed * 1024 * 1024) if speed > 0 else 0
                             total_time = elapsed_time + time_remaining
-                            self.telemetry_update.emit(speed, time_remaining, total_time)
-                            logger.info(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
+                            # Update telemetry every second
+                            if time() - last_update_time >= 1:
+                                self.telemetry_update.emit(speed, time_remaining, total_time)
+                                last_update_time = time()
+
+                            logger.info(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
+                    self.files_received += 1
+                    pending_files = max(self.total_files - self.files_received, 0)  # Ensure pending files do not go below 0
+                    self.file_count_update.emit(self.total_files, self.files_received, pending_files)
 
             except Exception as e:
                 logger.error("Error during file reception: %s", str(e))
@@ -392,6 +407,7 @@ class ReceiveAppP(QWidget):
         self.file_receiver.transfer_finished.connect(self.onTransferFinished)
         self.file_receiver.telemetry_update.connect(self.updateTelemetry)
         self.file_receiver.connection_failed.connect(self.show_error_message)
+        self.file_receiver.file_count_update.connect(self.updateFileCounts)
 
         # Start the typewriter effect
         self.typewriter_timer = QTimer(self)
@@ -422,7 +438,6 @@ class ReceiveAppP(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(10)  # Set spacing between widgets
         layout.setContentsMargins(10, 10, 10, 10)  # Add some margins around the layout
-        #com.an.Datadash
 
         # Loading label with the movie (GIF)
         self.loading_label = QLabel(self)
@@ -434,7 +449,6 @@ class ReceiveAppP(QWidget):
         self.loading_label.setMovie(self.receiving_movie)
         self.receiving_movie.start()
         layout.addWidget(self.loading_label, alignment=Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
-        #com.an.Datadash
 
         # Text label "Waiting for file..." (for typewriter effect)
         self.label = QLabel("", self)
@@ -465,17 +479,26 @@ class ReceiveAppP(QWidget):
         """)
         layout.addWidget(self.progress_bar)
 
+        # Horizontal layout for file counts and telemetry
+        h_layout = QHBoxLayout()
+
+        # File counts label
+        self.file_counts_label = QLabel("Total files: 0 | Completed: 0 | Pending: 0")
+        self.style_label(self.file_counts_label)
+        h_layout.addWidget(self.file_counts_label, alignment=Qt.AlignmentFlag.AlignLeft)
+
         # Telemetry label
         self.telemetry_label = QLabel("Speed: 0 B/s | Time remaining: 0 s | Total time: 0 s")
         self.style_label(self.telemetry_label)
-        layout.addWidget(self.telemetry_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        h_layout.addWidget(self.telemetry_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        layout.addLayout(h_layout)
 
         # Open directory button
         self.open_dir_button = self.create_styled_button('Open Receiving Directory')
         self.open_dir_button.clicked.connect(self.open_receiving_directory)
         self.open_dir_button.setVisible(False)  # Initially hidden
         layout.addWidget(self.open_dir_button)
-        #com.an.Datadash
 
         # Keep them disabled until the file transfer is completed
         self.close_button = self.create_styled_button('Close')  # Apply styling here
@@ -593,7 +616,12 @@ class ReceiveAppP(QWidget):
         self.progress_bar.setValue(value)
 
     def updateTelemetry(self, speed, time_remaining, total_time):
-        self.telemetry_label.setText(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+        self.telemetry_label.setText(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
+    def updateFileCounts(self, total_files, files_received, files_pending):
+        # Ensure the completed files count is accurate
+        completed_files = min(files_received, total_files)
+        self.file_counts_label.setText(f"Total files: {total_files} | Completed: {completed_files} | Pending: {files_pending}")
 
     def onTransferFinished(self):
         self.label.setText("File received successfully!")
