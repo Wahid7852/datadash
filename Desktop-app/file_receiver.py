@@ -12,7 +12,7 @@ from PyQt6.QtGui import QScreen, QMovie, QKeySequence, QKeyEvent
 from constant import ConfigManager
 from portsss import BROADCAST_PORT, LISTEN_PORT, RECEIVER_JSON
 from loges import logger
-from time import sleep
+from time import sleep, time
 import json
 from file_receiver_python import ReceiveAppP
 from file_receiver_android import ReceiveAppPJava
@@ -124,6 +124,110 @@ class FileReceiver(QThread):
         if self.client_socket:
             self.client_socket.close()
 
+
+class ReceiveWorkerPython(QThread):
+    # ...existing code...
+
+    def receive_files(self):
+        self.broadcasting = False  # Stop broadcasting
+        logger.debug("File reception started.")
+
+        while True:
+            try:
+                # Receive and decode encryption flag
+                encryption_flag = self.client_skt.recv(8).decode()
+                logger.debug("Received encryption flag: %s", encryption_flag)
+
+                if not encryption_flag:
+                    logger.debug("Dropped redundant data: %s", encryption_flag)
+                    break
+                # ...existing code...
+
+                if encryption_flag[-1] == 't':
+                    encrypted_transfer = True
+                elif encryption_flag[-1] == 'h':
+                    # Halting signal, break transfer and decrypt files
+                    if self.encrypted_files:
+                        self.decrypt_signal.emit(self.encrypted_files)
+                    self.encrypted_files = []
+                    logger.debug("Received halt signal. Stopping file reception.")
+                    self.transfer_finished.emit()
+                    break
+                else:
+                    encrypted_transfer = False
+
+                # Receive file name size
+                file_name_size_data = self.client_skt.recv(8)
+                file_name_size = struct.unpack('<Q', file_name_size_data)[0]
+                logger.debug("File name size received: %d", file_name_size)
+
+                if file_name_size == 0:
+                    logger.debug("End of transfer signal received.")
+                    break  # End of transfer signal
+
+                # Receive file name and normalize the path
+                file_name = self._receive_data(self.client_skt, file_name_size).decode()
+
+                # Convert Windows-style backslashes to Unix-style forward slashes
+                file_name = file_name.replace('\\', '/')
+                logger.debug("Normalized file name: %s", file_name)
+
+                # Receive file size
+                file_size_data = self.client_skt.recv(8)
+                file_size = struct.unpack('<Q', file_size_data)[0]
+                logger.debug("Receiving file %s, size: %d bytes", file_name, file_size)
+
+                start_time = time()  # Start time for telemetry
+                received_size = 0
+                last_update_time = time()  # Track the last update time
+
+                # Check if it's metadata
+                if file_name == 'metadata.json':
+                    logger.debug("Receiving metadata file.")
+                    self.metadata = self.receive_metadata(file_size)
+                    self.total_files = len(self.metadata)  # Include the last entry (base folder info)
+                    self.file_count_update.emit(self.total_files, self.files_received, self.total_files - self.files_received)
+                    # ...existing code...
+                else:
+                    # ...existing code...
+
+                    # Receive file data in chunks
+                    with open(file_path, "wb") as f:
+                        while received_size < file_size:
+                            chunk_size = min(CHUNK_SIZE_DESKTOP, file_size - received_size)
+                            data = self._receive_data(self.client_skt, chunk_size)
+                            if not data:
+                                logger.error("Failed to receive data. Connection may have been closed.")
+                                break
+                            f.write(data)
+                            received_size += len(data)
+                            logger.debug("Received %d/%d bytes for file %s", received_size, file_size, file_name)
+                            self.progress_update.emit(received_size * 100 // file_size)
+
+                            # Calculate telemetry
+                            elapsed_time = time() - start_time
+                            speed = (received_size / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0  # Convert to Mbps
+                            time_remaining = (file_size - received_size) / (speed * 1024 * 1024) if speed > 0 else 0
+                            total_time = elapsed_time + time_remaining
+
+                            # Update telemetry every second
+                            if time() - last_update_time >= 1:
+                                self.telemetry_update.emit(speed, time_remaining, total_time)
+                                last_update_time = time()
+
+                            logger.info(f"Speed: {speed:.2f} Mbps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
+                    self.files_received += 1
+                    pending_files = max(self.total_files - self.files_received, 0)  # Ensure pending files do not go below 0
+                    self.file_count_update.emit(self.total_files, self.files_received, pending_files)
+
+            except Exception as e:
+                logger.error("Error during file reception: %s", str(e))
+                break
+
+        logger.debug("File reception completed.")
+
+    # ...existing code...
 
 
 class ReceiveApp(QWidget):
@@ -331,6 +435,9 @@ class ReceiveApp(QWidget):
         logger.debug(f"Receiver config updated: {config}")
         # Update any UI elements or settings based on the new config if needed
         pass
+
+    def updateTelemetry(self, speed, time_remaining, total_time):
+        self.telemetry_label.setText(f"Speed: {speed:.2f} Mbps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
 if __name__ == '__main__':
     import sys
