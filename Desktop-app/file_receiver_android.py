@@ -107,9 +107,8 @@ class ReceiveWorkerJava(QThread):
 
 
     def receive_files(self):
-        self.broadcasting = False
+        self.broadcasting = False  # Stop broadcasting
         logger.debug("File reception started.")
-        is_folder_transfer = False
 
         while True:
             try:
@@ -120,10 +119,12 @@ class ReceiveWorkerJava(QThread):
                 if not encryption_flag:
                     logger.debug("Dropped redundant data: %s", encryption_flag)
                     break
+                # ...existing code...
 
                 if encryption_flag[-1] == 't':
                     encrypted_transfer = True
                 elif encryption_flag[-1] == 'h':
+                    # Halting signal, break transfer and decrypt files
                     if self.encrypted_files:
                         self.decrypt_signal.emit(self.encrypted_files)
                     self.encrypted_files = []
@@ -137,79 +138,71 @@ class ReceiveWorkerJava(QThread):
                 file_name_size_data = self.client_skt.recv(8)
                 file_name_size = struct.unpack('<Q', file_name_size_data)[0]
                 logger.debug("File name size received: %d", file_name_size)
-                
+
                 if file_name_size == 0:
                     logger.debug("End of transfer signal received.")
-                    break
+                    break  # End of transfer signal
 
                 # Receive file name and normalize the path
                 file_name = self._receive_data(self.client_skt, file_name_size).decode()
+
+                # Convert Windows-style backslashes to Unix-style forward slashes
                 file_name = file_name.replace('\\', '/')
-                logger.debug("Original file name: %s", file_name)
+                logger.debug("Normalized file name: %s", file_name)
 
                 # Receive file size
                 file_size_data = self.client_skt.recv(8)
                 file_size = struct.unpack('<Q', file_size_data)[0]
+                logger.debug("Receiving file %s, size: %d bytes", file_name, file_size)
 
-                try:
-                    # Handle metadata.json
-                    if file_name == 'metadata.json':
-                        logger.debug("Receiving metadata file.")
-                        self.metadata = self.receive_metadata(file_size)
-                        
-                        # Check if this is a folder transfer
-                        is_folder_transfer = any(file_info.get('path', '').endswith('/') 
-                                            for file_info in self.metadata)
-                        
-                        if is_folder_transfer:
-                            self.destination_folder = self.create_folder_structure(self.metadata)
-                        else:
-                            # For single files, use default directory
-                            self.destination_folder = self.config_manager.get_config()["save_to_directory"]
-                        continue
+                start_time = time()  # Start time for telemetry
+                received_size = 0
+                last_update_time = time()  # Track the last update time
 
-                    # Determine file path based on transfer type
-                    if is_folder_transfer and self.metadata:
-                        # Handle folder structure
-                        relative_file_path = file_name
-                        if self.base_folder_name and relative_file_path.startswith(self.base_folder_name + '/'):
-                            relative_file_path = relative_file_path[len(self.base_folder_name) + 1:]
-                        full_file_path = os.path.join(self.destination_folder, relative_file_path)
-                    else:
-                        # Handle single file
-                        full_file_path = os.path.join(self.destination_folder, os.path.basename(file_name))
+                # Check if it's metadata
+                if file_name == 'metadata.json':
+                    logger.debug("Receiving metadata file.")
+                    self.metadata = self.receive_metadata(file_size)
+                    self.total_files = len(self.metadata)  # Include the last entry (base folder info)
+                    self.file_count_update.emit(self.total_files, self.files_received, self.total_files - self.files_received)
+                    # ...existing code...
+                else:
+                    # ...existing code...
 
-                    # Ensure directory exists and handle duplicates
-                    os.makedirs(os.path.dirname(full_file_path), exist_ok=True)
-                    full_file_path = self._get_unique_file_name(full_file_path)
-                    logger.debug(f"Saving file to: {full_file_path}")
-
-                    # Receive file data
-                    with open(full_file_path, "wb") as f:
-                        received_size = 0
-                        remaining = file_size
-                        while remaining > 0:
-                            chunk_size = min(CHUNK_SIZE_ANDROID, remaining)
-                            data = self.client_skt.recv(chunk_size)
+                    # Receive file data in chunks
+                    with open(file_path, "wb") as f:
+                        while received_size < file_size:
+                            chunk_size = min(CHUNK_SIZE_ANDROID, file_size - received_size)
+                            data = self._receive_data(self.client_skt, chunk_size)
                             if not data:
-                                raise ConnectionError("Connection lost during file reception.")
+                                logger.error("Failed to receive data. Connection may have been closed.")
+                                break
                             f.write(data)
                             received_size += len(data)
-                            remaining -= len(data)
-                            progress = int(received_size * 100 / file_size)
-                            self.progress_update.emit(progress)
+                            logger.debug("Received %d/%d bytes for file %s", received_size, file_size, file_name)
+                            self.progress_update.emit(received_size * 100 // file_size)
 
-                    if encrypted_transfer:
-                        self.encrypted_files.append(full_file_path)
+                            # Calculate telemetry
+                            elapsed_time = time() - start_time
+                            speed = (received_size / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0  # Convert to MBps
+                            time_remaining = (file_size - received_size) / (speed * 1024 * 1024) if speed > 0 else 0
+                            total_time = elapsed_time + time_remaining
 
-                except Exception as e:
-                    logger.error(f"Error saving file {file_name}: {str(e)}")
+                            # Update telemetry every second
+                            if time() - last_update_time >= 1:
+                                self.telemetry_update.emit(speed, time_remaining, total_time)
+                                last_update_time = time()
+
+                            logger.info(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
+                    self.files_received += 1
+                    pending_files = max(self.total_files - self.files_received, 0)  # Ensure pending files do not go below 0
+                    self.file_count_update.emit(self.total_files, self.files_received, pending_files)
 
             except Exception as e:
                 logger.error("Error during file reception: %s", str(e))
                 break
 
-        self.broadcasting = True
         logger.debug("File reception completed.")
 
     def _receive_data(self, socket, size):
@@ -522,6 +515,8 @@ class ReceiveAppPJava(QWidget):
     def updateProgressBar(self, value):
         self.progress_bar.setValue(value)
 
+    def updateTelemetry(self, speed, time_remaining, total_time):
+        self.telemetry_label.setText(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
     def change_gif_to_success(self):
         self.receiving_movie.stop()
