@@ -14,20 +14,24 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#333"
-        android:textAlignment="center"
-        android:padding="8dp"
-        android:gravity="center">
+        android:padding="8dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:text="Transfer Status"
-            android:textColor="@color/white"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="Transfer Status"
+                android:textColor="@color/white"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
     </androidx.appcompat.widget.Toolbar>
 
     <!-- Transfer Complete Text -->
@@ -39,7 +43,7 @@
         android:layout_marginBottom="8dp"
         android:text="Transfer Complete!"
         android:textColor="@color/white"
-        android:textSize="24sp"
+        android:textSize="28sp"
         android:textStyle="bold"
         android:gravity="center" />
 
@@ -51,7 +55,7 @@
         android:layout_marginBottom="24dp"
         android:text="All files transferred successfully"
         android:textColor="@color/white"
-        android:textSize="16sp"
+        android:textSize="20sp"
         android:gravity="center"
         android:alpha="0.8" />
 
@@ -70,7 +74,7 @@
             android:background="@drawable/state_list_drawable"
             android:text="Main Menu"
             android:textColor="@color/white"
-            android:padding="12dp" />
+            android:padding="16dp" />
 
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/done_button"
@@ -79,6 +83,6 @@
             android:background="@drawable/state_list_drawable"
             android:text="Close"
             android:textColor="@color/white"
-            android:padding="12dp" />
+            android:padding="16dp" />
     </LinearLayout>
 </LinearLayout>

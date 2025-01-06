@@ -83,8 +83,8 @@ public class ReceiveFileActivity extends AppCompatActivity {
         animationView = findViewById(R.id.transfer_animation);
         waitingAnimation = findViewById(R.id.waiting_animation);
         openFolder = findViewById(R.id.openFolder);
-        donebtn = findViewById(R.id.donebtn);
-        donebtn.setOnClickListener(v -> ondonebtnclk());
+//        donebtn = findViewById(R.id.donebtn);
+//        donebtn.setOnClickListener(v -> ondonebtnclk());
         txt_path = findViewById(R.id.path);
 
         senderJson = getIntent().getStringExtra("receivedJson");
