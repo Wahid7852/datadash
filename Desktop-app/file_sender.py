@@ -103,6 +103,7 @@ class FileSender(QThread):
             return
         
         self.encryption_flag = self.config_manager.get_config()["encryption"]
+        self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
 
         for file_path in self.file_paths:
             if os.path.isdir(file_path):
@@ -112,6 +113,8 @@ class FileSender(QThread):
                     metadata_file_path = self.create_metadata(file_paths=self.file_paths)
                     self.send_file(metadata_file_path, count=False)
                 self.send_file(file_path, encrypted_transfer=self.encryption_flag)
+                self.files_sent += 1
+                self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
         
         if self.metadata_created and metadata_file_path:
             os.remove(metadata_file_path)
@@ -204,6 +207,8 @@ class FileSender(QThread):
                     if self.encryption_flag:
                         relative_file_path += ".crypt"
                     self.send_file(file_path, relative_file_path=relative_file_path, encrypted_transfer=self.encryption_flag)
+                    self.files_sent += 1
+                    self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
 
         os.remove(metadata_file_path)
 
@@ -231,6 +236,7 @@ class FileSender(QThread):
         self.client_skt.send(struct.pack('<Q', file_size))
 
         start_time = time()  # Start time for telemetry
+        last_update_time = time()  # Track the last update time
         with open(file_path, 'rb') as f:
             while sent_size < file_size:
                 data = f.read(CHUNK_SIZE_DESKTOP)
@@ -240,10 +246,14 @@ class FileSender(QThread):
 
                 # Calculate telemetry
                 elapsed_time = time() - start_time
-                speed = sent_size / elapsed_time if elapsed_time > 0 else 0
-                time_remaining = (file_size - sent_size) / speed if speed > 0 else 0
+                speed = (sent_size / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0  # Convert to MBps
+                time_remaining = (file_size - sent_size) / (speed * 1024 * 1024) if speed > 0 else 0
                 total_time = elapsed_time + time_remaining
-                self.telemetry_update.emit(speed, time_remaining, total_time)
+
+                # Update telemetry every second
+                if time() - last_update_time >= 1:
+                    self.telemetry_update.emit(speed, time_remaining, total_time)
+                    last_update_time = time()
 
         if count:
             self.files_sent += 1
@@ -641,7 +651,7 @@ class SendApp(QWidget):
         self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
 
     def updateTelemetry(self, speed, time_remaining, total_time):
-        self.telemetry_label.setText(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+        self.telemetry_label.setText(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
 
     def onTransferFinished(self):
         self.close_button.setVisible(True)
