@@ -14,12 +14,16 @@ from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from constant import ConfigManager
 from loges import logger
 from crypt_handler import encrypt_file
-from time import sleep
+from time import sleep, time
 from portsss import RECEIVER_DATA_SWIFT
+
+CHUNK_SIZE_DESKTOP = 4096
 
 class FileSenderSwift(QThread):
     progress_update = pyqtSignal(int)
     file_send_completed = pyqtSignal(str)
+    telemetry_update = pyqtSignal(float, float, float)  # Add telemetry signal
+    file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
     password = None
 
     def __init__(self, ip_address, file_paths, password=None, receiver_data=None):
@@ -30,7 +34,19 @@ class FileSenderSwift(QThread):
         self.file_paths = file_paths
         self.password = password
         self.receiver_data = receiver_data
+        self.total_files = self.count_total_files()
+        self.files_sent = 0
         #com.an.Datadash
+
+    def count_total_files(self):
+        total = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for _, _, files in os.walk(path):
+                    total += len(files)
+            else:
+                total += 1
+        return total
 
     def initialize_connection(self):
         try:
@@ -65,6 +81,7 @@ class FileSenderSwift(QThread):
         self.encryption_flag = self.config_manager.get_config()["swift_encryption"]
         # logger.debug("Encryption flag: %s", self.encryption_flag)
 
+        self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
         for file_path in self.file_paths:
             if os.path.isdir(file_path):
                 self.send_folder(file_path)
@@ -73,6 +90,8 @@ class FileSenderSwift(QThread):
                     metadata_file_path = self.create_metadata(file_paths=self.file_paths)
                     self.send_file(metadata_file_path)
                 self.send_file(file_path, encrypted_transfer=self.encryption_flag)
+                self.files_sent += 1
+                self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
         
         # Delete metadata file
         if self.metadata_created and metadata_file_path:
@@ -166,6 +185,8 @@ class FileSenderSwift(QThread):
                     if self.encryption_flag:
                         relative_file_path += ".crypt"
                     self.send_file(file_path, relative_file_path=relative_file_path, encrypted_transfer=self.encryption_flag)
+                    self.files_sent += 1
+                    self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
                 else:
                     # Handle directory creation (if needed, in receiver)
                     pass
@@ -175,19 +196,15 @@ class FileSenderSwift(QThread):
 
     def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False):
         logger.debug("Sending file: %s", file_path)
-        # if self.metadata_created:
-        #     self.createmetadata(file_path=file_path)
 
-        # Encrypt the file if encrypted_transfer argument is present
         if encrypted_transfer:
             logger.debug("Encrypted transfer with password: %s", self.password)
-
             file_path = encrypt_file(file_path, self.password)
 
         sent_size = 0
         file_size = os.path.getsize(file_path)
         if relative_file_path is None:
-            relative_file_path = os.path.basename(file_path)  # Default to the base name if relative path isn't provided
+            relative_file_path = os.path.basename(file_path)
         file_name_size = len(relative_file_path.encode())
         logger.debug("Sending %s, %s", relative_file_path, file_size)
 
@@ -196,17 +213,32 @@ class FileSenderSwift(QThread):
         self.client_skt.send(encryption_flag.encode())
         logger.debug("Sent encryption flag: %s", encryption_flag)
 
-        # Send the relative file path size and the path
         self.client_skt.send(struct.pack('<Q', file_name_size))
         self.client_skt.send(relative_file_path.encode('utf-8'))
         self.client_skt.send(struct.pack('<Q', file_size))
 
+        start_time = time()  # Start time for telemetry
+        last_update_time = time()  # Track the last update time
         with open(file_path, 'rb') as f:
             while sent_size < file_size:
-                data = f.read(4096)
+                data = f.read(CHUNK_SIZE_DESKTOP)
                 self.client_skt.sendall(data)
                 sent_size += len(data)
                 self.progress_update.emit(sent_size * 100 // file_size)
+
+                # Calculate telemetry
+                elapsed_time = time() - start_time
+                speed = (sent_size / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0  # Convert to MBps
+                time_remaining = (file_size - sent_size) / (speed * 1024 * 1024) if speed > 0 else 0
+                total_time = elapsed_time + time_remaining
+
+                # Update telemetry every second
+                if time() - last_update_time >= 1:
+                    self.telemetry_update.emit(speed, time_remaining, total_time)
+                    last_update_time = time()
+
+        self.files_sent += 1
+        self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
 
         if encrypted_transfer:
             os.remove(file_path)
@@ -361,6 +393,27 @@ class SendAppSwift(QWidget):
         self.style_label(self.status_label)
         content_layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
+        # Telemetry label
+        self.telemetry_label = QLabel("")
+        self.telemetry_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.telemetry_label)
+        content_layout.addWidget(self.telemetry_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.total_files_label = QLabel("Total files: 0")
+        self.total_files_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.total_files_label)
+        content_layout.addWidget(self.total_files_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.completed_files_label = QLabel("Completed files: 0")
+        self.completed_files_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.completed_files_label)
+        content_layout.addWidget(self.completed_files_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.pending_files_label = QLabel("Pending files: 0")
+        self.pending_files_label.setStyleSheet("color: white; font-size: 14px;")
+        self.style_label(self.pending_files_label)
+        content_layout.addWidget(self.pending_files_label, alignment=Qt.AlignmentFlag.AlignCenter)
+
          # Create 2 buttons for close and Transfer More Files
         # Keep them disabled until the file transfer is completed
         self.close_button = QPushButton('Close', self)
@@ -505,6 +558,8 @@ class SendAppSwift(QWidget):
         self.progress_bar.setVisible(True)
         self.file_sender_swift.progress_update.connect(self.updateProgressBar)
         self.file_sender_swift.file_send_completed.connect(self.fileSent)
+        self.file_sender_swift.telemetry_update.connect(self.updateTelemetry)  # Connect telemetry signal
+        self.file_sender_swift.file_count_update.connect(self.updateFileCounts)
         self.file_sender_swift.start()
         #com.an.Datadash
 
@@ -520,6 +575,13 @@ class SendAppSwift(QWidget):
             self.close_button.setVisible(True)
             # self.mainmenu_button.setVisible(True)
 
+    def updateTelemetry(self, speed, time_remaining, total_time):
+        self.telemetry_label.setText(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
+    def updateFileCounts(self, total_files, files_sent, files_pending):
+        self.total_files_label.setText(f"Total files: {total_files}")
+        self.completed_files_label.setText(f"Completed files: {files_sent}")
+        self.pending_files_label.setText(f"Pending files: {files_pending}")
 
     def fileSent(self, file_path):
         self.status_label.setText(f"File sent: {file_path}")
