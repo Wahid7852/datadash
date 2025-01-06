@@ -20,7 +20,7 @@ from portsss import RECEIVER_DATA_DESKTOP, CHUNK_SIZE_DESKTOP
 
 class ProgressBarDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
-        if index.column() == 2:  # Progress column
+        if index.column() == 3:  # Progress column (changed from 2 to 3)
             progress = index.data(Qt.ItemDataRole.UserRole)
             if progress is not None:
                 progressBar = QProgressBar()
@@ -360,6 +360,8 @@ class SendApp(QWidget):
         self.file_paths = []
         self.file_progress_bars = {}  # Initialize the dictionary for progress bars
         self.send_button = None  # Initialize the send button reference
+        self.encryption_enabled = self.config_manager.get_config()["encryption"]
+        self.file_name_map = {}  # Add mapping for encrypted files
         self.initUI()
         self.progress_bar.setVisible(False)
         self.main_window = None
@@ -397,7 +399,7 @@ class SendApp(QWidget):
      row_position = self.file_table.rowCount()
      self.file_table.insertRow(row_position)
 
-    # Create X button
+     # Remove button (Column 0)
      remove_button = QPushButton("X")
      remove_button.setStyleSheet("""
          QPushButton {
@@ -426,6 +428,7 @@ class SendApp(QWidget):
      button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
      self.file_table.setCellWidget(row_position, 0, button_widget)
 
+     # File name (Column 1)
      if os.path.isdir(file_path):
         folder_name = os.path.basename(file_path)
         name_item = QTableWidgetItem(folder_name)
@@ -445,17 +448,16 @@ class SendApp(QWidget):
         total_size = os.path.getsize(file_path)
         size_str = self.format_size(total_size)
 
+     # Size (Column 2)
      size_item = QTableWidgetItem(size_str)
      size_item.setFlags(size_item.flags() ^ Qt.ItemFlag.ItemIsEditable)
      self.file_table.setItem(row_position, 2, size_item)
 
+     # Progress (Column 3) 
      progress_item = QTableWidgetItem()
      progress_item.setData(Qt.ItemDataRole.UserRole, 0)
      self.file_table.setItem(row_position, 3, progress_item)
      self.file_progress_bars[file_path] = progress_item
-
-
-
 
     def remove_file(self, file_path):
      for row in range(self.file_table.rowCount()):
@@ -878,12 +880,30 @@ class SendApp(QWidget):
         self.file_counts_label.setText(f"Total files: {total_files} | Completed: {files_sent} | Pending: {files_pending}")
 
     def updateFileProgressBar(self, file_path, value):
-        if file_path not in self.file_progress_bars:
-            # Only create progress bar for folders or individual files
-            if os.path.isdir(file_path) or file_path in self.file_paths:
-                self.add_file_to_table(file_path)
-        if file_path in self.file_progress_bars:
-            self.file_progress_bars[file_path].setData(Qt.ItemDataRole.UserRole, value)
+        if self.encryption_enabled and not file_path.endswith('metadata.json'):
+            # Map the encrypted file path back to original file path
+            original_path = file_path[:-6] if file_path.endswith('.crypt') else file_path
+            
+            # For folder progress updates
+            if os.path.isdir(original_path):
+                if original_path in self.file_progress_bars:
+                    self.file_progress_bars[original_path].setData(Qt.ItemDataRole.UserRole, value)
+                return
+
+            # For individual files
+            if original_path not in self.file_progress_bars:
+                if original_path in self.file_paths:
+                    self.add_file_to_table(original_path)
+            
+            if original_path in self.file_progress_bars:
+                self.file_progress_bars[original_path].setData(Qt.ItemDataRole.UserRole, value)
+        else:
+            # Original non-encrypted logic
+            if file_path not in self.file_progress_bars:
+                if os.path.isdir(file_path) or file_path in self.file_paths:
+                    self.add_file_to_table(file_path)
+            if file_path in self.file_progress_bars:
+                self.file_progress_bars[file_path].setData(Qt.ItemDataRole.UserRole, value)
 
     def updateOverallProgressBar(self, value):
         self.progress_bar.setValue(value)
@@ -920,12 +940,3 @@ if __name__ == '__main__':
     send_app = SendApp("127.0.0.1", "Test Device", None)
     send_app.show()
     sys.exit(app.exec())
-    #com.an.Datadash
-    #com.an.Datadash
-    import sys
-    app = QApplication(sys.argv)
-    send_app = SendApp("127.0.0.1", "Test Device", None)
-    send_app.show()
-    sys.exit(app.exec())
-    #com.an.Datadash
-    #com.an.Datadash

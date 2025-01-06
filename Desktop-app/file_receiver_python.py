@@ -52,6 +52,8 @@ class ReceiveWorkerPython(QThread):
     transfer_finished = pyqtSignal()
     password = None
     update_files_table_signal = pyqtSignal(list)
+    # Add new signal for file rename events
+    file_renamed_signal = pyqtSignal(str, str)  # old_name, new_name
 
     def __init__(self, client_ip):
         super().__init__()
@@ -136,13 +138,16 @@ class ReceiveWorkerPython(QThread):
             self.server_skt.close()
 
     def receive_files(self):
-        self.broadcasting = False  # Stop broadcasting
+        self.broadcasting = False
         self.folder_transfer = False
         logger.debug("File reception started.")
         
         total_bytes = 0
         received_total = 0
-        folder_received_bytes = 0  # Add this line to track folder bytes
+        folder_received_bytes = 0
+        encrypted_transfer = False
+        file_name = None  # Initialize file_name
+        original_filename = None  # Initialize original_filename
 
         while True:
             try:
@@ -153,12 +158,10 @@ class ReceiveWorkerPython(QThread):
                 if not encryption_flag:
                     logger.debug("Dropped redundant data: %s", encryption_flag)
                     break
-                #com.an.Datadash
 
                 if encryption_flag[-1] == 't':
                     encrypted_transfer = True
                 elif encryption_flag[-1] == 'h':
-                    # Halting signal, break transfer and decrypt files
                     if self.encrypted_files:
                         self.decrypt_signal.emit(self.encrypted_files)
                     self.encrypted_files = []
@@ -175,10 +178,15 @@ class ReceiveWorkerPython(QThread):
 
                 if file_name_size == 0:
                     logger.debug("End of transfer signal received.")
-                    break  # End of transfer signal
+                    break
 
                 # Receive file name and normalize the path
                 file_name = self._receive_data(self.client_skt, file_name_size).decode()
+                original_filename = file_name  # Store original filename before any modifications
+
+                # Add .crypt extension for encrypted files
+                if encrypted_transfer and file_name != 'metadata.json':
+                    file_name = file_name + '.crypt'
 
                 # Convert Windows-style backslashes to Unix-style forward slashes
                 file_name = file_name.replace('\\', '/')
@@ -213,11 +221,21 @@ class ReceiveWorkerPython(QThread):
                     logger.debug("Metadata processed. Destination folder set to: %s", self.destination_folder)
                 else:
                     # Check if file exists in the receiving directory
-                    original_name, extension = os.path.splitext(file_name)
+                    original_name = file_name
+                    original_name_base, extension = os.path.splitext(file_name)
                     i = 1
                     while os.path.exists(os.path.join(self.destination_folder, file_name)):
-                        file_name = f"{original_name} ({i}){extension}"
+                        if encrypted_transfer:
+                            file_name = f"{original_name_base[:-6]} ({i}).crypt"  # Remove .crypt before adding counter
+                        else:
+                            file_name = f"{original_name_base} ({i}){extension}"
                         i += 1
+                    
+                    # Emit signal if file was renamed, use original filename for display
+                    if file_name != original_name:
+                        display_name = original_filename if encrypted_transfer else file_name
+                        self.file_renamed_signal.emit(original_filename, display_name)
+
                     # Determine the correct path using metadata
                     if self.metadata:
                         relative_path = self.get_relative_path_from_metadata(file_name)
@@ -270,7 +288,9 @@ class ReceiveWorkerPython(QThread):
                                 overall_progress = min(overall_progress, 100)
                                 
                                 if not self.folder_transfer:
-                                    self.file_progress_update.emit(file_name, file_progress)
+                                    # Use original filename for progress updates if encrypted
+                                    progress_name = original_filename if encrypted_transfer else file_name
+                                    self.file_progress_update.emit(progress_name, file_progress)
                                 self.progress_update.emit(overall_progress)
                             except Exception as e:
                                 logger.error(f"Error calculating progress: {str(e)}")
@@ -454,6 +474,8 @@ class ReceiveAppP(QWidget):
         self.file_receiver.receiving_started.connect(self.show_progress_bar)
         self.file_receiver.transfer_finished.connect(self.onTransferFinished)
         self.file_receiver.update_files_table_signal.connect(self.update_files_table)
+        self.file_name_map = {}  # Add dictionary to track renamed files
+        self.file_receiver.file_renamed_signal.connect(self.handle_file_rename)
 
         # Start the typewriter effect
         self.typewriter_timer = QTimer(self)
@@ -755,6 +777,19 @@ class ReceiveAppP(QWidget):
         except Exception as e:
             logger.error(f"Error updating files table: {str(e)}")
 
+    def handle_file_rename(self, old_name, new_name):
+        """Track renamed files - now handles both encrypted and unencrypted files"""
+        self.file_name_map[old_name] = new_name
+        # Update the table with the new filename (without .crypt extension for encrypted files)
+        for row in range(self.files_table.rowCount()):
+            if self.files_table.item(row, 0).text() == os.path.basename(old_name):
+                display_name = os.path.basename(new_name)
+                if display_name.endswith('.crypt'):
+                    display_name = display_name[:-6]  # Remove .crypt extension for display
+                self.files_table.item(row, 0).setText(display_name)
+                self.files_table.item(row, 0).setToolTip(new_name)
+                break
+
     def update_file_progress(self, file_name, progress):
         """Update progress for a specific file or folder."""
         if self.file_receiver.folder_transfer:
@@ -763,9 +798,16 @@ class ReceiveAppP(QWidget):
                 progress_item.setData(Qt.ItemDataRole.UserRole, progress)
                 self.files_table.setItem(0, 2, progress_item)
         else:
-            # Original file progress update logic
+            # Check if the file was renamed
+            actual_name = self.file_name_map.get(file_name, file_name)
+            
+            # Look for the file in the table - compare without .crypt extension
             for row in range(self.files_table.rowCount()):
-                if self.files_table.item(row, 0).text() == os.path.basename(file_name):
+                table_filename = self.files_table.item(row, 0).text()
+                compare_name = os.path.basename(actual_name)
+                if compare_name.endswith('.crypt'):
+                    compare_name = compare_name[:-6]
+                if table_filename == os.path.basename(compare_name):
                     progress_item = QTableWidgetItem()
                     progress_item.setData(Qt.ItemDataRole.UserRole, progress)
                     self.files_table.setItem(row, 2, progress_item)
