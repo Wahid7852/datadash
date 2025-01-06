@@ -25,6 +25,8 @@ class FileSenderJava(QThread):
     total_files = pyqtSignal(int)
     files_completed = pyqtSignal(int)
     files_pending = pyqtSignal(int)
+    file_count_update = pyqtSignal(int, int, int)  # total_files, files_sent, files_pending
+    telemetry_update = pyqtSignal(float, float, float)  # speed, time_remaining, total_time
 
     def __init__(self, ip_address, file_paths, password=None, receiver_data=None):
         super().__init__()
@@ -34,7 +36,19 @@ class FileSenderJava(QThread):
         self.file_paths = file_paths
         self.password = password
         self.receiver_data = receiver_data
+        self.total_files = self.count_total_files()
+        self.files_sent = 0
         #com.an.Datadash
+
+    def count_total_files(self):
+        total = 0
+        for path in self.file_paths:
+            if os.path.isdir(path):
+                for _, _, files in os.walk(path):
+                    total += len(files)
+            else:
+                total += 1
+        return total
 
     def initialize_connection(self):
         try:
@@ -69,6 +83,7 @@ class FileSenderJava(QThread):
         self.total_files.emit(total_files_count)
         completed_files_count = 0
         pending_files_count = total_files_count
+        self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
 
         try:
             for file_path in self.file_paths:
@@ -90,6 +105,8 @@ class FileSenderJava(QThread):
                             pending_files_count -= 1
                             self.files_completed.emit(completed_files_count)
                             self.files_pending.emit(pending_files_count)
+                            self.files_sent += 1
+                            self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
                 else:
                     if not self.metadata_created:
                         metadata_file_path = self.create_metadata(file_paths=self.file_paths)
@@ -100,6 +117,8 @@ class FileSenderJava(QThread):
                     pending_files_count -= 1
                     self.files_completed.emit(completed_files_count)
                     self.files_pending.emit(pending_files_count)
+                    self.files_sent += 1
+                    self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
             
             # Send halt signal after all transfers complete
             logger.debug("Sent halt signal")
@@ -187,62 +206,59 @@ class FileSenderJava(QThread):
                     relative_path += ".crypt"
                 
                 self.send_file(file_path, relative_file_path=relative_path, encrypted_transfer=self.encryption_flag)
+                self.files_sent += 1
+                self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
 
     def send_file(self, file_path, relative_file_path=None, encrypted_transfer=False):
         logger.debug("Sending file: %s", file_path)
 
-        # Handle file encryption if needed
         if encrypted_transfer:
             logger.debug("Encrypted transfer with password: %s", self.password)
             file_path = encrypt_file(file_path, self.password)
 
-        try:
-            file_size = os.path.getsize(file_path)
-            if relative_file_path is None:
-                relative_file_path = os.path.basename(file_path)
-            
-            # Send encryption flag
-            encryption_flag = 'encyp: t' if encrypted_transfer else 'encyp: f'
-            self.client_skt.send(encryption_flag.encode())
-            logger.debug("Sent encryption flag: %s", encryption_flag)
+        sent_size = 0
+        file_size = os.path.getsize(file_path)
+        if relative_file_path is None:
+            relative_file_path = os.path.basename(file_path)
+        file_name_size = len(relative_file_path.encode())
+        logger.debug("Sending %s, %s", relative_file_path, file_size)
 
-            # Send file name size and name
-            file_name_bytes = relative_file_path.encode('utf-8')
-            self.client_skt.send(struct.pack('<Q', len(file_name_bytes)))
-            self.client_skt.send(file_name_bytes)
+        encryption_flag = 'encyp: t' if encrypted_transfer else 'encyp: f'
 
-            # Send file size
-            self.client_skt.send(struct.pack('<Q', file_size))
+        self.client_skt.send(encryption_flag.encode())
+        logger.debug("Sent encryption flag: %s", encryption_flag)
 
-            # Send file data with progress updates
-            sent_size = 0
-            start_time = time()  # Start time for telemetry
-            with open(file_path, 'rb') as f:
-                while sent_size < file_size:
-                    chunk = f.read(CHUNK_SIZE_ANDROID)
-                    if not chunk:
-                        break
-                    self.client_skt.sendall(chunk)
-                    sent_size += len(chunk)
-                    progress = int(sent_size * 100 / file_size)
-                    self.progress_update.emit(progress)
+        self.client_skt.send(struct.pack('<Q', file_name_size))
+        self.client_skt.send(relative_file_path.encode('utf-8'))
+        self.client_skt.send(struct.pack('<Q', file_size))
 
-                    # Calculate telemetry
-                    elapsed_time = time() - start_time
-                    speed = sent_size / elapsed_time if elapsed_time > 0 else 0
-                    time_remaining = (file_size - sent_size) / speed if speed > 0 else 0
-                    total_time = elapsed_time + time_remaining
-                    logger.info(f"Speed: {speed:.2f} B/s | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+        start_time = time()  # Start time for telemetry
+        last_update_time = time()  # Track the last update time
+        with open(file_path, 'rb') as f:
+            while sent_size < file_size:
+                data = f.read(CHUNK_SIZE_ANDROID)
+                self.client_skt.sendall(data)
+                sent_size += len(data)
+                self.progress_update.emit(sent_size * 100 // file_size)
 
-            # Clean up encrypted file if it was created
-            if encrypted_transfer:
-                os.remove(file_path)
+                # Calculate telemetry
+                elapsed_time = time() - start_time
+                speed = (sent_size / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0  # Convert to MBps
+                time_remaining = (file_size - sent_size) / (speed * 1024 * 1024) if speed > 0 else 0
+                total_time = elapsed_time + time_remaining
 
-            return True
+                # Update telemetry every second
+                if time() - last_update_time >= 1:
+                    self.telemetry_update.emit(speed, time_remaining, total_time)
+                    last_update_time = time()
 
-        except Exception as e:
-            logger.error("Error sending file: %s", str(e))
-            return False
+        self.files_sent += 1
+        self.file_count_update.emit(self.total_files, self.files_sent, self.total_files - self.files_sent)
+
+        if encrypted_transfer:
+            os.remove(file_path)
+
+        return True
 
 class Receiver(QListWidgetItem):
     def __init__(self, name, ip_address):
@@ -554,6 +570,8 @@ class SendAppJava(QWidget):
         self.file_sender_java.total_files.connect(self.updateTotalFiles)
         self.file_sender_java.files_completed.connect(self.updateCompletedFiles)
         self.file_sender_java.files_pending.connect(self.updatePendingFiles)
+        self.file_sender_java.file_count_update.connect(self.updateFileCounts)
+        self.file_sender_java.telemetry_update.connect(self.updateTelemetry)
         self.file_sender_java.start()
         #com.an.Datadash
 
@@ -583,6 +601,14 @@ class SendAppJava(QWidget):
     def updatePendingFiles(self, pending):
         self.pending_files_label.setText(f"Pending files: {pending}")
 
+    def updateFileCounts(self, total_files, files_sent, files_pending):
+        self.total_files_label.setText(f"Total files: {total_files}")
+        self.completed_files_label.setText(f"Completed files: {files_sent}")
+        self.pending_files_label.setText(f"Pending files: {files_pending}")
+
+    def updateTelemetry(self, speed, time_remaining, total_time):
+        self.telemetry_label.setText(f"Speed: {speed:.2f} MBps | Time remaining: {time_remaining:.2f} s | Total time: {total_time:.2f} s")
+
     def closeEvent(self, event):
         try:
             """Override the close event to ensure everything is stopped properly."""
@@ -610,3 +636,5 @@ if __name__ == '__main__':
     send_app.show()
     sys.exit(app.exec())
     #com.an.Datadash
+
+
