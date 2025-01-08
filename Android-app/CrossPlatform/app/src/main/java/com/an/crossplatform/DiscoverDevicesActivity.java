@@ -105,12 +105,6 @@ public class DiscoverDevicesActivity extends AppCompatActivity {
 //                }
             }
         });
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                closeAllSockets();
-            }
-        });
     }
 
     private void resetSockets() {
