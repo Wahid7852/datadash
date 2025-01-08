@@ -99,8 +99,8 @@ public class SendFileActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                Toast.makeText(SendFileActivity.this,  "Back navigation is disabled, Please Restart the App", Toast.LENGTH_SHORT).show();
-                // Do nothing to disable back navigation
+                closeAllSockets();
+                Toast.makeText(SendFileActivity.this,  "Device Disconnected", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -863,24 +863,35 @@ public class SendFileActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        closeSocket();
-        executorService.shutdown();
-    }
-
-    @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        // Close sockets on activity destruction
+    private void closeAllSockets() {
         try {
-            if (socket != null) {
+            // Close socket-related resources
+            if (dos != null) {
+                dos.close();
+                FileLogger.log("SendFileActivity", "DataOutputStream closed");
+            }
+            if (dis != null) {
+                dis.close();
+                FileLogger.log("SendFileActivity", "DataInputStream closed");
+            }
+            if (socket != null && !socket.isClosed()) {
                 socket.close();
                 FileLogger.log("SendFileActivity", "Socket closed");
             }
+
+            // Shutdown executor
+            executorService.shutdown();
+            FileLogger.log("SendFileActivity", "ExecutorService shutdown");
+
+            finish(); // Close the activity
         } catch (IOException e) {
-            FileLogger.log("SendFileActivity", "Error closing socket", e);
+            FileLogger.log("SendFileActivity", "Error closing sockets", e);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        closeAllSockets();
     }
 }

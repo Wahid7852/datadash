@@ -73,8 +73,8 @@ public class ReceiveFileActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                Toast.makeText(ReceiveFileActivity.this, "Back navigation is disabled, Please Restart the App", Toast.LENGTH_SHORT).show();
-                // Do nothing to disable back navigation
+                closeAllSockets();
+                Toast.makeText(ReceiveFileActivity.this, "Device Disconnected", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -482,36 +482,35 @@ public class ReceiveFileActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executorService.shutdown(); // Add this to clean up thread pool
+    private void closeAllSockets() {
         try {
-            if (clientSocket != null) {
+            // Close client socket
+            if (clientSocket != null && !clientSocket.isClosed()) {
                 clientSocket.close();
+                FileLogger.log("ReceiveFileActivity", "Client Socket closed");
             }
-            if (serverSocket != null) {
+            
+            // Close server socket
+            if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
+                FileLogger.log("ReceiveFileActivity", "Server Socket closed");
             }
+
+            // Shutdown executor service
+            if (executorService != null && !executorService.isShutdown()) {
+                executorService.shutdown();
+                FileLogger.log("ReceiveFileActivity", "ExecutorService shutdown");
+            }
+
+            finish(); // Close the activity
         } catch (IOException e) {
             FileLogger.log("ReceiveFileActivity", "Error closing sockets", e);
         }
     }
 
     @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        // Close sockets on activity destruction
-        try {
-            if (clientSocket != null && !clientSocket.isClosed()) {
-                clientSocket.close();
-            }
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
-            }
-        } catch (IOException e) {
-            FileLogger.log("ReceiveFileActivityPython", "Error closing sockets", e);
-        }
-        finish();
+    protected void onDestroy() {
+        super.onDestroy();
+        closeAllSockets();
     }
 }

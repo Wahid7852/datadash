@@ -96,8 +96,8 @@ public class SendFileActivityPython extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                Toast.makeText(SendFileActivityPython.this,  "Back navigation is disabled, Please Restart the App", Toast.LENGTH_SHORT).show();
-                // Do nothing to disable back navigation
+                closeAllSockets();
+                Toast.makeText(SendFileActivityPython.this,  "Device Disconnected", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -853,32 +853,35 @@ public class SendFileActivityPython extends AppCompatActivity {
         return encryption;
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Close the socket connection when the activity is destroyed
+    private void closeAllSockets() {
         try {
-            if (socket != null) {
-                socket.close();
-                FileLogger.log("SendFileActivity", "Socket closed");
+            // Close socket-related resources
+            if (dos != null) {
+                dos.close();
+                FileLogger.log("SendFileActivityPython", "DataOutputStream closed");
             }
+            if (dis != null) {
+                dis.close();
+                FileLogger.log("SendFileActivityPython", "DataInputStream closed");
+            }
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+                FileLogger.log("SendFileActivityPython", "Socket closed");
+            }
+
+            // Shutdown executor
+            executorService.shutdown();
+            FileLogger.log("SendFileActivityPython", "ExecutorService shutdown");
+
+            finish(); // Close the activity
         } catch (IOException e) {
-            FileLogger.log("SendFileActivity", "Error closing socket", e);
+            FileLogger.log("SendFileActivityPython", "Error closing sockets", e);
         }
-        executorService.shutdown();  // Clean up background threads
     }
 
     @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        // Close sockets on activity destruction
-        try {
-            if (socket != null) {
-                socket.close();
-                FileLogger.log("SendFileActivity", "Socket closed");
-            }
-        } catch (IOException e) {
-            FileLogger.log("SendFileActivity", "Error closing socket", e);
-        }
+    protected void onDestroy() {
+        super.onDestroy();
+        closeAllSockets();
     }
 }
