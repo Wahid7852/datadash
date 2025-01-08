@@ -54,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
         createConfigFileIfNotExists();
         //createsavefolder();
         checkForUpdates();
+        forceReleaseUDPPort();
 
 
         Button btnSend = findViewById(R.id.btn_send);
@@ -61,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
         ImageButton btnPreferences = findViewById(R.id.btn_preferences);
 
         btnSend.setOnClickListener(v -> {
+            forceReleaseUDPPort();
             if (!isWifiConnected()) {
                 showNetworkWarning("Please note: No Wifi connection detected. Connection to other devices may fail.",
                         true,
@@ -69,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (shouldShowWarning()) {
+                forceReleaseUDPPort();
                 showNetworkWarning(
                         "Before starting the transfer, please ensure both the sender and receiver devices are connected to the same network.",
                         false,
@@ -534,6 +537,56 @@ public class MainActivity extends AppCompatActivity {
 
         androidx.appcompat.app.AlertDialog dialog = builder.create();
         dialog.show();
+    }
+
+    private void forceReleaseUDPPort() {
+        int port1=49185;
+        int port2=49186;
+        try {
+            // Find and kill process using the UDP port
+            Process process = Runtime.getRuntime().exec("lsof -i udp:" + port1);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                if (!line.startsWith("COMMAND")) {
+                    String[] parts = line.trim().split("\\s+");
+                    if (parts.length > 1) {
+                        String pid = parts[1];
+                        Runtime.getRuntime().exec("kill -9 " + pid);
+                        FileLogger.log("DiscoverDevices", "Killed process " + pid + " using UDP port " + port1);
+                    }
+                }
+            }
+
+            // Wait briefly for port to be fully released
+            Thread.sleep(500);
+        } catch (Exception e) {
+            FileLogger.log("DiscoverDevices", "Error releasing UDP port: " + port1, e);
+        }
+
+        try {
+            // Find and kill process using the UDP port
+            Process process = Runtime.getRuntime().exec("lsof -i udp:" + port2);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                if (!line.startsWith("COMMAND")) {
+                    String[] parts = line.trim().split("\\s+");
+                    if (parts.length > 1) {
+                        String pid = parts[1];
+                        Runtime.getRuntime().exec("kill -9 " + pid);
+                        FileLogger.log("DiscoverDevices", "Killed process " + pid + " using UDP port " + port2);
+                    }
+                }
+            }
+
+            // Wait briefly for port to be fully released
+            Thread.sleep(500);
+        } catch (Exception e) {
+            FileLogger.log("DiscoverDevices", "Error releasing UDP port: " + port2, e);
+        }
     }
 
     @Override
