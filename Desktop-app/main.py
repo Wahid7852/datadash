@@ -91,18 +91,13 @@ class VersionCheck(QThread):
         return url
 
 class NetworkCheck(QThread):
-    network_status = pyqtSignal(str)  # Signal to emit network status
-
     def __init__(self):
         super().__init__()
 
     def run(self):
         if platform.system() == 'Windows':
-            status = self.check_network_type_windows()
-            if status:
-                self.network_status.emit(status)
-            else:
-                self.network_status.emit('Failed to connect')
+            self.check_network_type_windows()
+            logger.info("Network check completed")
 
     def check_network_type_windows(self):
         try:
@@ -168,7 +163,6 @@ class MainApp(QWidget):
         self.config_manager.start()
         self.skip_version_check = skip_version_check
         self.network_thread = NetworkCheck()
-        self.network_thread.network_status.connect(self.handle_network_status)
         self.network_thread.start() #comment out after testing is over, lot of overhead on windows
 
     def on_config_ready(self):
@@ -483,7 +477,7 @@ class MainApp(QWidget):
             self.receive_app = ReceiveApp()
             self.receive_app.show()
 
-            
+
     def preferences_handler(self):
         logger.info("Started Preferences handler menu")
         self.hide()
@@ -560,12 +554,6 @@ class MainApp(QWidget):
 
         if reply == QMessageBox.StandardButton.Open:
             self.openSettings()
-
-    def handle_network_status(self, status):
-        if status == 'Failed to connect':
-            QMessageBox.critical(self, "Network Error", "Failed to connect to the network. Please check your connection.")
-        else:
-            logger.info(f"Network status: {status}")
 
 
 if __name__ == '__main__':
