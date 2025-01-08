@@ -161,7 +161,9 @@ else:
 
 BROADCAST_PORT = 49185
 LISTEN_PORT = 49186
+SENDER_DATA = 57000
 RECEIVER_JSON = 54314
+RECEIVER_DATA = 57341  
 
 logger.info("Broadcast port: %d, Listen port: %d", BROADCAST_PORT, LISTEN_PORT)
 #com.an.Datadash
